@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orbit Escape</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="game">
+      <canvas id="space"></canvas>
+
+      <div class="vignette" aria-hidden="true"></div>
+      <div class="reticle" aria-hidden="true"></div>
+
+      <section class="launch" id="launchPanel" aria-label="Старт полета">
+        <div class="launch__eyebrow">Solar flight deck</div>
+        <h1>Orbit Escape</h1>
+        <p>Первый вылет начинается у внутренней границы системы.</p>
+        <button id="launchButton" type="button">Войти в полет</button>
+      </section>
+
+      <aside class="hud hud--left" aria-label="Полетные данные">
+        <div class="readout">
+          <span>Скорость</span>
+          <strong id="speedReadout">0.0 c.u.</strong>
+        </div>
+        <div class="readout">
+          <span>Цель</span>
+          <strong id="targetReadout">Свободный полет</strong>
+        </div>
+        <div class="readout">
+          <span>Дистанция</span>
+          <strong id="distanceReadout">--</strong>
+        </div>
+      </aside>
+
+      <aside class="hud hud--right" aria-label="Навигация">
+        <div class="hud__title">Навигация</div>
+        <div class="target-list" id="targetList"></div>
+        <div class="switch-row">
+          <button id="orbitToggle" class="chip chip--active" type="button" aria-pressed="true">Орбиты</button>
+          <button id="labelsToggle" class="chip chip--active" type="button" aria-pressed="true">Метки</button>
+          <button id="jumpButton" class="chip" type="button">Прыжок</button>
+        </div>
+      </aside>
+
+      <div class="mobile-pad" aria-hidden="true">
+        <button data-touch="forward" type="button">▲</button>
+        <button data-touch="left" type="button">◀</button>
+        <button data-touch="right" type="button">▶</button>
+        <button data-touch="backward" type="button">▼</button>
+      </div>
+
+      <div class="labels" id="labels"></div>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

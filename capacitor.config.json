@@ -1,0 +1,11 @@
+{
+  "appId": "com.orbitescape.game",
+  "appName": "Orbit Escape",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
