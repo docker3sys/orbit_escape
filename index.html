@@ -17,6 +17,16 @@
         <div class="launch__eyebrow">Solar flight deck</div>
         <h1>Orbit Escape</h1>
         <p>Первый вылет начинается у внутренней границы системы.</p>
+        <div class="launch-controls" aria-label="Управление">
+          <div><kbd>W</kbd><span>вперед</span></div>
+          <div><kbd>S</kbd><span>назад</span></div>
+          <div><kbd>A</kbd><kbd>D</kbd><span>влево / вправо</span></div>
+          <div><kbd>Mouse</kbd><span>обзор</span></div>
+          <div><kbd>Shift</kbd><span>форсаж</span></div>
+          <div><kbd>B</kbd><span>суперкруиз</span></div>
+          <div><kbd>Space</kbd><kbd>C</kbd><span>вверх / вниз</span></div>
+          <div><kbd>T</kbd><span>прыжок к цели</span></div>
+        </div>
         <button id="launchButton" type="button">Войти в полет</button>
       </section>
 
@@ -39,8 +49,8 @@
         <div class="hud__title">Навигация</div>
         <div class="target-list" id="targetList"></div>
         <div class="switch-row">
-          <button id="orbitToggle" class="chip chip--active" type="button" aria-pressed="true">Орбиты</button>
-          <button id="labelsToggle" class="chip chip--active" type="button" aria-pressed="true">Метки</button>
+          <button id="orbitToggle" class="chip" type="button" aria-pressed="false">Орбиты</button>
+          <button id="labelsToggle" class="chip" type="button" aria-pressed="false">Метки</button>
           <button id="jumpButton" class="chip" type="button">Прыжок</button>
         </div>
       </aside>

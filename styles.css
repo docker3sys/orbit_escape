@@ -138,10 +138,55 @@ button {
 }
 
 .launch p {
-  margin: 0 0 22px;
+  margin: 0 0 18px;
   color: var(--muted);
   font-size: 17px;
   line-height: 1.45;
+}
+
+.launch-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.launch-controls div {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 32px;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.launch-controls kbd {
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  background: rgba(2, 3, 8, 0.54);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.launch-controls span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .launch button {
@@ -387,6 +432,10 @@ button {
     top: 52%;
     padding: 20px;
   }
+
+  .launch-controls {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 440px) {
@@ -400,5 +449,23 @@ button {
 
   .readout {
     grid-template-columns: 82px minmax(0, 1fr);
+  }
+
+  .launch h1 {
+    font-size: 42px;
+  }
+
+  .launch p {
+    font-size: 15px;
+  }
+
+  .launch-controls {
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+
+  .launch-controls div {
+    min-height: 30px;
+    padding: 5px 7px;
   }
 }

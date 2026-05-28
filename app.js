@@ -49,8 +49,8 @@ const targetButtons = new Map();
 const targetObjects = [];
 
 let selectedTarget = null;
-let labelsVisible = true;
-let orbitsVisible = true;
+let labelsVisible = false;
+let orbitsVisible = false;
 let yaw = 0;
 let pitch = 0;
 let roll = 0;
@@ -1050,6 +1050,11 @@ function selectTarget(key, lock = true) {
 function initUi() {
   selectTarget("earth", false);
   placeCameraNearTarget("earth");
+  orbitToggle.classList.toggle("chip--active", orbitsVisible);
+  orbitToggle.setAttribute("aria-pressed", String(orbitsVisible));
+  labelsToggle.classList.toggle("chip--active", labelsVisible);
+  labelsToggle.setAttribute("aria-pressed", String(labelsVisible));
+  labelsRoot.style.display = labelsVisible ? "block" : "none";
 
   orbitToggle.addEventListener("click", () => {
     orbitsVisible = !orbitsVisible;
