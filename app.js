@@ -1042,10 +1042,7 @@ function selectTarget(key, lock = true) {
     targetReadout.textContent = "Свободный полет";
   }
 
-  if (lock) {
-    canvas.focus();
-    requestLock();
-  }
+  if (lock) canvas.focus();
 }
 
 function initUi() {
@@ -1110,7 +1107,6 @@ function jumpToSelectedTarget() {
   velocity.set(0, 0, 0);
   lookAtWorldPosition(tempVec);
   canvas.focus();
-  requestLock();
 }
 
 function lookAtWorldPosition(position) {
@@ -1142,7 +1138,9 @@ function bindControls() {
     requestLock();
   });
 
-  canvas.addEventListener("click", requestLock);
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button === 0) requestLock();
+  });
 
   document.addEventListener("pointerlockchange", () => {
     if (document.pointerLockElement === canvas) {
@@ -1250,7 +1248,8 @@ function bindControls() {
 }
 
 function requestLock() {
-  if (document.pointerLockElement !== canvas && "requestPointerLock" in canvas) {
+  if (solarActive && matchMedia("(any-pointer: fine)").matches &&
+      document.pointerLockElement !== canvas && "requestPointerLock" in canvas) {
     canvas.requestPointerLock()?.catch(() => {});
   }
 }
