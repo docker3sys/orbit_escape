@@ -146,7 +146,7 @@ export function createExpeditionUI(parent, callbacks = {}) {
       html = `<div class="oe-tag">${icon('check')} Экспедиция завершена</div>
       <h1 id="oe-dialog-title">${people ? '«Створ» на связи' : 'Чистый эфир'}</h1><p>${people ? 'Шесть окон на заброшенном посту снова светятся. У Voyager на твоей частоте появился второй голос.' : 'У Voyager длинная нота впервые звучит до конца без помех. Установленный тобой маяк держит проход открытым дольше.'}</p>
       <div class="oe-tally"><div><small>Кромка</small><strong>${people ? '12' : '18'}</strong><span>жителей</span></div><div><small>Створ</small><strong>${people ? '6' : '0'}</strong><span>жителей</span></div><div><small>Радиомаяк</small><strong class="oe-tally-word">${people ? 'В резерве' : 'В эфире'}</strong></div></div>
-      <div class="oe-actions">${command('share','Поделиться позывным','major','share')}${command('postcard','Сохранить открытку','quiet','save')}${command('new','Пройти ещё раз','quiet',null)}</div>`;
+      <div class="oe-actions">${command('echo','Далее · Два голоса','major','next')}${command('share','Поделиться позывным','quiet','share')}${command('postcard','Сохранить открытку','quiet','save')}${command('new','Пройти ещё раз','quiet',null)}</div>`;
     }
     ref.card.innerHTML = html;
     ref.panel.hidden = !html;

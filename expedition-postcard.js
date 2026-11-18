@@ -1,3 +1,5 @@
+import { drawRouteCard } from "./echo-route-art.js";
+
 const memories = {
   people: {title:"«Створ» на связи",line:"Шестеро вернулись домой.",tag:"КРОМКА 12   /   СТВОР 06", file:"stvor"},
   relay: {title:"Чистый эфир",line:"Теперь их сигнал доходит до Земли.",tag:"КРОМКА 18   /   РЕТРАНСЛЯТОР В СЕТИ",file:"beacon"},
@@ -50,20 +52,32 @@ async function makeFile(choice) {
     if (x===0) ctx.moveTo(x+65,y);else ctx.lineTo(x+65,y);
   }
   ctx.stroke();
-  let blob;
-  try { blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png")); }
-  catch { throw new Error("Cannot export flight log"); }
-  if (!blob) throw new Error("No image data");
-  return new File([blob],"Orbit-Escape-"+m.file+".png",{type:"image/png"});
+  return pngFile(canvas, "Orbit-Escape-" + m.file + ".png");
+}
+
+async function pngFile(canvas, name) {
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("No PNG data");
+  return new File([blob], name, {type:"image/png"});
+}
+
+function prepareFile(key, make) {
+  if (cached?.key === key) return cached.pending;
+  const pending = Promise.resolve().then(make);
+  cached = {key, pending};
+  pending.catch(() => { if (cached?.pending === pending) cached = null; });
+  return pending;
 }
 
 export function preparePostcard(choice) {
-  if (!cached || cached.choice!==choice) {
-    const pending=makeFile(choice);
-    cached={choice,pending};
-    pending.catch(()=>{if(cached?.pending===pending) cached=null;});
-  }
-  return cached.pending;
+  return prepareFile("postcard/" + choice, () => makeFile(choice));
+}
+
+export function prepareRouteCard(choice) {
+  return prepareFile("route/" + choice, () => {
+    const canvas = drawRouteCard(choice);
+    return pngFile(canvas, "Orbit-Escape-route-" + choice + ".png");
+  });
 }
 
 function nativePlugin() {
@@ -77,8 +91,7 @@ function encode(file) {
     reader.readAsDataURL(file);
   });
 }
-export async function savePostcard(choice) {
-  const file=await preparePostcard(choice);
+async function saveFile(file) {
   const plugin=nativePlugin();
   if (plugin) {
     const result=await plugin.save({data:await encode(file),name:file.name});
@@ -89,15 +102,34 @@ export async function savePostcard(choice) {
   setTimeout(()=>URL.revokeObjectURL(url),30000);
   return true;
 }
-export async function sharePostcard(choice) {
+async function shareFile(prepare, choice, title) {
   const plugin=nativePlugin();
   if (!plugin && !navigator.canShare) return false;
   try {
-    const file=await preparePostcard(choice);
-    const title="Orbit Escape · "+memories[choice].title;
+    const file=await prepare(choice);
     if (plugin) {await plugin.share({data:await encode(file),name:file.name,title});return true;}
     if (!navigator.canShare({files:[file]})) return false;
     await navigator.share({title,files:[file]});
     return true;
   } catch(error) {return error?.name==="AbortError";}
+}
+
+export async function savePostcard(choice) {
+  return saveFile(await preparePostcard(choice));
+}
+
+export function sharePostcard(choice) {
+  return shareFile(preparePostcard, choice, "Orbit Escape · " + (memories[choice]?.title || ""));
+}
+
+export async function saveRouteCard(choice) {
+  try {
+    return await saveFile(await prepareRouteCard(choice));
+  } catch {
+    return false;
+  }
+}
+
+export function shareRouteCard(choice) {
+  return shareFile(prepareRouteCard, choice, "Orbit Escape · Два голоса");
 }

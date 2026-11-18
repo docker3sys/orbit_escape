@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./launch.css" />
     <link rel="stylesheet" href="./expedition.css" />
+    <link rel="stylesheet" href="./echo.css" />
   </head>
   <body>
     <main id="game" hidden>
@@ -61,13 +62,20 @@
     </main>
 
     <main id="hangar" aria-label="Выбор полёта">
-      <div class="hangar-brand"><span aria-hidden="true" class="orbit-mark"></span>ORBIT ESCAPE</div>
+      <header class="hangar-top">
+        <div class="hangar-brand"><span aria-hidden="true" class="orbit-mark"></span>ORBIT ESCAPE</div>
+        <div class="chapter-picker" role="group" aria-label="Выбор экспедиции">
+          <button id="chapterBeacon" type="button" aria-pressed="true"><small>01</small> Тихий маяк</button>
+          <button id="chapterEcho" type="button" aria-pressed="false"><small>02</small> Два голоса</button>
+        </div>
+      </header>
       <section class="hangar-intro" aria-labelledby="chapterTitle">
-        <div class="chapter-number"><span></span> Экспедиция 01</div>
+        <div class="chapter-number"><span></span><b id="chapterNumber">Экспедиция 01</b></div>
         <h1 id="chapterTitle">Тихий<br>маяк<span>.</span></h1>
-        <p>У Voyager 1 услышали ответ из пустого сектора. Найди источник сигнала.</p>
+        <p id="chapterBrief">У Voyager 1 услышали ответ из пустого сектора. Найди источник сигнала.</p>
         <div class="hangar-actions">
           <button id="beaconStart" type="button">Начать экспедицию <span aria-hidden="true">→</span></button>
+          <button id="echoStart" type="button" hidden>Вылететь к «Кромке» <span aria-hidden="true">→</span></button>
           <button id="solarStart" type="button">Свободный полёт</button>
         </div>
         <button id="freshStart" class="fresh-start" type="button" hidden>Начать заново</button>

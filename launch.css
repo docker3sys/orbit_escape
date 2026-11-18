@@ -35,3 +35,25 @@
 .solar-help summary{padding:10px 12px;cursor:pointer;min-height:38px}
 .solar-help p{margin:4px 13px 13px}
 @media(max-width:600px){.solar-help{right:8px;bottom:6px}.solar-menu{left:8px;bottom:6px}}
+
+.hangar-top{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.chapter-picker{display:flex;gap:4px;max-width:100%;padding:4px;border:1px solid #71838170;border-radius:7px;background:#090e16b8}
+.chapter-picker button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 14px;cursor:pointer;background:transparent;color:#d2d7d7;border-radius:4px;font:600 14px/1.2 system-ui,sans-serif}
+.chapter-picker small{font:11px/1 ui-monospace,monospace;color:#c2a58b}
+.chapter-picker button[aria-pressed=true]{background:#e7e6dc;color:#172429}
+.chapter-picker button[aria-pressed=true] small{color:#516363}
+.chapter-number b{font-weight:inherit}
+#echoStart{background:#98e0d5;color:#102625}#echoStart span{margin-left:10px}
+#hangar [hidden]{display:none}
+#hangar[data-chapter=echo]{background-image:linear-gradient(90deg,#040910ad,rgba(5,9,14,.36) 33%,transparent 65%),linear-gradient(0deg,#02070a91,transparent 39%),url("./assets/echo-cover.jpg")}
+#hangar[data-chapter=echo] .chapter-number,#hangar[data-chapter=echo] h1 span{color:#9de5d7}
+#hangar[data-chapter=echo] .chapter-number>span{background:#9de5d7}
+@media(max-width:700px) and (orientation:portrait){
+  .hangar-top{align-items:flex-start;flex-direction:column;gap:17px}
+  .chapter-picker{position:relative}.chapter-picker button{padding:9px 12px;min-height:40px}
+  #hangar[data-chapter=echo]{background-image:linear-gradient(0deg,#070b10 5%,rgba(5,10,15,.92) 30%,transparent 62%),url("./assets/echo-cover.jpg");background-position:center,68% 3%}
+  .hangar-intro{margin-top:clamp(100px,22vh,230px)}
+}
+@media(max-height:480px) and (orientation:landscape){
+ .chapter-picker{padding:2px}.chapter-picker button{min-height:31px;font-size:12px}
+}

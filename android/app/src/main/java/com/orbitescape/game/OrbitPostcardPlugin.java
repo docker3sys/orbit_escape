@@ -24,8 +24,15 @@ import java.io.OutputStream;
 @CapacitorPlugin(name = "OrbitPostcard")
 public class OrbitPostcardPlugin extends Plugin {
     private String filename(PluginCall call) {
-        return "Orbit-Escape-stvor.png".equals(call.getString("name"))
-            ? "Orbit-Escape-stvor.png" : "Orbit-Escape-beacon.png";
+        String name = call.getString("name", "");
+        switch (name) {
+            case "Orbit-Escape-stvor.png":
+            case "Orbit-Escape-route-people.png":
+            case "Orbit-Escape-route-relay.png":
+                return name;
+            default:
+                return "Orbit-Escape-beacon.png";
+        }
     }
 
     private byte[] png(PluginCall call) throws IOException {
