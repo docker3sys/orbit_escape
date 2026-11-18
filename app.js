@@ -34,6 +34,8 @@ const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerH
 camera.position.set(0, 9, 126);
 
 const clock = new THREE.Clock();
+let solarActive = false;
+let solarFrame = 0;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2(0, 0);
 const keys = new Set();
@@ -294,7 +296,6 @@ initMilkyWayOutline();
 initNebulaBackdrop();
 initUi();
 bindControls();
-animate();
 
 function initLights() {
   const ambient = new THREE.AmbientLight(0x4f668a, 0.82);
@@ -1127,6 +1128,7 @@ function getApproachDistance(object) {
 }
 
 function shouldCaptureKey(event) {
+  if (!solarActive) return false;
   const gameIsActive = document.pointerLockElement === canvas || launchPanel.classList.contains("is-hidden");
   const browserFlightShortcut =
     event.ctrlKey &&
@@ -1159,6 +1161,7 @@ function bindControls() {
   });
 
   window.addEventListener("keydown", (event) => {
+    if (!solarActive) return;
     if (shouldCaptureKey(event)) {
       event.preventDefault();
     }
@@ -1248,7 +1251,7 @@ function bindControls() {
 
 function requestLock() {
   if (document.pointerLockElement !== canvas && "requestPointerLock" in canvas) {
-    canvas.requestPointerLock();
+    canvas.requestPointerLock()?.catch(() => {});
   }
 }
 
@@ -1260,7 +1263,27 @@ function resize() {
   renderer.setSize(width, height);
 }
 
+export function resumeSolarFlight() {
+  if (solarActive) return;
+  solarActive = true;
+  launchPanel.classList.add("is-hidden");
+  clock.getDelta();
+  resize();
+  animate();
+}
+
+export function pauseSolarFlight() {
+  solarActive = false;
+  cancelAnimationFrame(solarFrame);
+  keys.clear();
+  touchState.clear();
+  draggingLook = false;
+  lastTouch = null;
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+}
+
 function animate() {
+  if (!solarActive) return;
   const delta = Math.min(clock.getDelta(), 0.04);
   const elapsed = clock.elapsedTime;
 
@@ -1273,7 +1296,7 @@ function animate() {
 
   renderer.render(scene, camera);
   updateRenderProbe(elapsed);
-  requestAnimationFrame(animate);
+  solarFrame = requestAnimationFrame(animate);
 }
 
 function updateCamera(delta) {

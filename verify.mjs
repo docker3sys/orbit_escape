@@ -58,6 +58,7 @@ async function runViewport(name, metrics) {
   await tab.send("Emulation.setDeviceMetricsOverride", metrics);
   await tab.send("Page.navigate", { url: appUrl });
   await tab.waitFor("Page.loadEventFired", 8000);
+  await tab.evaluate(`document.querySelector("#solarStart").click()`);
   await delay(2600);
 
   const diagnostics = await tab.evaluate(`(() => {
@@ -86,7 +87,7 @@ async function runViewport(name, metrics) {
       render: window.__ORBIT_ESCAPE_RENDER__ ?? null,
       overflowX,
       nav: rect(".hud--right"),
-      launch: rect(".launch"),
+      launch: rect("#solarMenu"),
       flight: rect(".hud--left"),
       pad: rect(".mobile-pad"),
     };

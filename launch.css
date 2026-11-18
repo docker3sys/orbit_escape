@@ -1,0 +1,37 @@
+#hangar[hidden], #game[hidden], #launchPanel[hidden], #freshStart[hidden], #launchStatus[hidden] { display:none }
+#hangar {
+  position:fixed; inset:0; overflow:auto; z-index:8; isolation:isolate; color:#fff7e8;
+  font-family:"Arial",system-ui,sans-serif; background-color:#070a10;
+  background-image:linear-gradient(90deg,rgba(4,8,13,.70) 0%,rgba(4,8,13,.33) 35%,transparent 67%),linear-gradient(0deg,rgba(3,6,11,.60),transparent 34%),url("./assets/beacon-cover.jpg");
+  background-position:center,center,center; background-repeat:no-repeat; background-size:cover;
+  padding:clamp(24px,5.4vw,92px); display:flex; flex-direction:column; justify-content:space-between;
+}
+.hangar-brand{display:flex;align-items:center;gap:11px; font-size:12px; font-weight:700; letter-spacing:.24em; color:#eee6db}
+.orbit-mark{width:22px;height:22px;border:1.6px solid #ffb880;border-radius:50%;position:relative;transform:rotate(-24deg)}
+.orbit-mark::after{content:"";position:absolute;inset:6px -8px;border:1px solid #ffbb8c;border-radius:50%}
+.hangar-intro{margin:clamp(65px,13vh,180px) 0 1vh;max-width:600px}
+.chapter-number{color:#ffc29b;font:600 12px/1.2 ui-monospace,monospace;text-transform:uppercase;letter-spacing:.16em;display:flex;align-items:center;gap:12px}
+.chapter-number>span{width:32px;height:2px;background:#ffae76}
+.hangar-intro h1 {font-size:clamp(80px,min(11vw,15vh),170px);line-height:.84;letter-spacing:-.065em;font-weight:750;margin:23px 0 24px}
+.hangar-intro h1>span{color:#ffac77}
+.hangar-intro p{color:#dfdedc;font-size:clamp(16px,1.65vw,21px);line-height:1.45;max-width:380px;margin:0 0 27px}
+.hangar-actions{display:flex;gap:12px;flex-wrap:wrap}
+.hangar-actions button,.solar-menu{cursor:pointer;font-weight:650;min-height:47px;padding:12px 21px;border-radius:6px;transition:background .2s,transform .2s}
+#beaconStart{background:#ffb07d;color:#24130e}#beaconStart span{margin-left:12px}
+#solarStart,.solar-menu{background:rgba(16,23,30,.82);color:#f7f1e9;border:1px solid #596068}
+.hangar-actions button:hover,.solar-menu:hover{filter:brightness(1.13);transform:translateY(-1px)}
+#hangar button:focus-visible,.solar-menu:focus-visible{outline:2px solid white;outline-offset:4px}
+.fresh-start{background:none;color:#b6c2c6;border-bottom:1px solid #687278;padding:2px 0;font-size:13px;margin-top:13px;cursor:pointer}
+.hangar-intro #launchStatus{color:#ffcca9;font-size:14px;margin:.7rem 0 0}
+.solar-menu{position:absolute;z-index:5;left:14px;bottom:max(16px,env(safe-area-inset-bottom));min-height:40px;padding:8px 12px;font-size:13px}
+@media(max-width:700px) and (orientation:portrait) {
+  #hangar{background-image:linear-gradient(0deg,#070b10 4%,rgba(5,10,15,.94) 29%,transparent 66%),url("./assets/beacon-cover.jpg");background-position:center,65% 0%;background-size:cover,auto 69%;padding:max(25px,env(safe-area-inset-top)) 23px max(30px,env(safe-area-inset-bottom))}
+  .hangar-intro{margin:35vh 0 0}.hangar-intro h1{font-size:clamp(69px,16.8vw,112px)}.hangar-intro p{max-width:340px;margin-bottom:20px}.hangar-actions{gap:8px}.hangar-actions button{padding:12px 14px;font-size:14px}.chapter-number{font-size:10px}
+}
+@media(max-height:540px) and (orientation:landscape){#hangar{padding:16px 5vw}.hangar-intro{margin:17px 0 0}.hangar-intro h1{font-size:clamp(47px,14vh,85px);margin:12px 0}.hangar-intro p{margin-bottom:10px;font-size:15px}.hangar-actions button{min-height:38px;padding:8px 14px}.solar-menu{bottom:8px}}
+@media(prefers-reduced-motion:reduce){.hangar-actions button,.solar-menu{transition:none}}
+
+.solar-help{position:absolute;right:14px;bottom:max(16px,env(safe-area-inset-bottom));z-index:6;font:13px/1.4 system-ui,sans-serif;color:#f5f0e8;background:#101720e8;border:1px solid #596068;border-radius:6px;max-width:min(340px,85vw)}
+.solar-help summary{padding:10px 12px;cursor:pointer;min-height:38px}
+.solar-help p{margin:4px 13px 13px}
+@media(max-width:600px){.solar-help{right:8px;bottom:6px}.solar-menu{left:8px;bottom:6px}}

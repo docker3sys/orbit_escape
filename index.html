@@ -2,34 +2,28 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Orbit Escape</title>
+    <meta name="theme-color" content="#070b10" />
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./launch.css" />
+    <link rel="stylesheet" href="./expedition.css" />
   </head>
   <body>
-    <main id="game">
+    <main id="game" hidden>
       <canvas id="space"></canvas>
 
       <div class="vignette" aria-hidden="true"></div>
       <div class="reticle" aria-hidden="true"></div>
 
-      <section class="launch" id="launchPanel" aria-label="Старт полета">
-        <div class="launch__eyebrow">Solar flight deck</div>
-        <h1>Orbit Escape</h1>
-        <p>Первый вылет начинается у внутренней границы системы.</p>
-        <div class="launch-controls" aria-label="Управление">
-          <div><kbd>W</kbd><span>вперед</span></div>
-          <div><kbd>S</kbd><span>назад</span></div>
-          <div><kbd>A</kbd><kbd>D</kbd><span>влево / вправо</span></div>
-          <div><kbd>Mouse</kbd><span>обзор</span></div>
-          <div><kbd>Shift</kbd><span>форсаж</span></div>
-          <div><kbd>B</kbd><span>суперкруиз</span></div>
-          <div><kbd>Q</kbd><kbd>E</kbd><span>крен</span></div>
-          <div><kbd>Space</kbd><kbd>C</kbd><span>вверх / вниз</span></div>
-          <div><kbd>T</kbd><span>прыжок к цели</span></div>
-        </div>
-        <button id="launchButton" type="button">Войти в полет</button>
+      <section class="launch is-hidden" id="launchPanel" aria-label="Свободный полёт" hidden>
+        <button id="launchButton" type="button">Продолжить полёт</button>
       </section>
+      <details class="solar-help"><summary>Управление</summary>
+        <p>Проведи пальцем по небу, чтобы осмотреться. Кнопки со стрелками двигают корабль. Выбери цель в навигации и нажми «Прыжок».</p>
+        <p>На клавиатуре WASD — движение, пробел и C — вверх и вниз, Q и E — крен. Мышь — обзор, Shift — форсаж, B — суперкруиз, T — прыжок. Esc освобождает курсор.</p>
+      </details>
+      <button id="solarMenu" class="solar-menu" type="button">‹  К выбору режима</button>
 
       <aside class="hud hud--left" aria-label="Полетные данные">
         <div class="readout">
@@ -66,6 +60,20 @@
       <div class="labels" id="labels"></div>
     </main>
 
-    <script type="module" src="./app.js"></script>
+    <main id="hangar" aria-label="Выбор полёта">
+      <div class="hangar-brand"><span aria-hidden="true" class="orbit-mark"></span>ORBIT ESCAPE</div>
+      <section class="hangar-intro" aria-labelledby="chapterTitle">
+        <div class="chapter-number"><span></span> Экспедиция 01</div>
+        <h1 id="chapterTitle">Тихий<br>маяк<span>.</span></h1>
+        <p>У Voyager 1 услышали ответ из пустого сектора. Найди источник сигнала.</p>
+        <div class="hangar-actions">
+          <button id="beaconStart" type="button">Начать экспедицию <span aria-hidden="true">→</span></button>
+          <button id="solarStart" type="button">Свободный полёт</button>
+        </div>
+        <button id="freshStart" class="fresh-start" type="button" hidden>Начать заново</button>
+        <p id="launchStatus" role="status" hidden></p>
+      </section>
+    </main>
+    <script type="module" src="./launch.js"></script>
   </body>
 </html>

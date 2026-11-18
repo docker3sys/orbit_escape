@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Orbit Escape Preview</string>
+    <string name="title_activity_main">Orbit Escape Preview</string>
+    <string name="package_name">com.orbitescape.game.preview</string>
+    <string name="custom_url_scheme">com.orbitescape.game.preview</string>
+</resources>
