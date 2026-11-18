@@ -1,4 +1,5 @@
 import * as THREE from "./vendor/three.module.js";
+import { createSolarObservatory } from "./solar-observatory.js";
 
 const canvas = document.querySelector("#space");
 const launchPanel = document.querySelector("#launchPanel");
@@ -561,6 +562,64 @@ function initSpacecraft() {
   });
 }
 
+let returnObservatory;
+let foldNavigation;
+let navigationFolded = false;
+const compactSolar = matchMedia("(max-width: 720px)");
+
+function syncNavigationFold() {
+  if (!foldNavigation) return;
+  const compact = compactSolar.matches;
+  const folded = compact && navigationFolded;
+  foldNavigation.hidden = !compact;
+  document.querySelector(".hud--right .hud__title").hidden = compact;
+  targetList.style.display = folded ? "none" : "";
+  foldNavigation.textContent = folded ? "Показать цели ▾" : "Свернуть цели ▴";
+  foldNavigation.setAttribute("aria-expanded", String(!folded));
+}
+
+function enableNavigationFold() {
+  foldNavigation = document.createElement("button");
+  foldNavigation.type = "button";
+  foldNavigation.className = "chip";
+  foldNavigation.setAttribute("aria-controls", targetList.id);
+  targetList.before(foldNavigation);
+  foldNavigation.addEventListener("click", () => {
+    navigationFolded = !navigationFolded;
+    syncNavigationFold();
+  });
+  window.addEventListener("resize", syncNavigationFold);
+  syncNavigationFold();
+}
+
+export function setObservatoryUnlocked(choice) {
+  if (choice !== "people" && choice !== "relay") return;
+  if (!returnObservatory) {
+    enableNavigationFold();
+    returnObservatory = createSolarObservatory(THREE);
+    const span = 920;
+    scaleModelToRealSpan(returnObservatory.model, span);
+    const station = new THREE.Group();
+    station.name = "Обсерватория · экспедиция";
+    station.position.copy(auToWorld([72.5, -18.2, 3.42]));
+    station.userData.trueRadius = span * METERS_TO_UNITS / 2;
+    station.userData.approachDistance = span * METERS_TO_UNITS * 1.56;
+    station.userData.approachVector = new THREE.Vector3(0.27, 0.32, 1).normalize();
+    station.userData.targetColor = 0xa4e5d5;
+    station.add(returnObservatory.model);
+    world.add(station);
+    addLabel(station.name, station, station.userData.targetColor);
+    addTarget(station.name, station, "return-observatory");
+  }
+  returnObservatory.setChoice(choice);
+}
+
+export function visitObservatory() {
+  if (!returnObservatory) return;
+  selectTarget("return-observatory", false);
+  jumpToSelectedTarget();
+}
+
 function initGalaxyScaleTargets() {
   galacticTargets.forEach((target) => {
     const marker = new THREE.Group();
@@ -1095,6 +1154,12 @@ function jumpToSelectedTarget() {
 
   selectedTarget.object.getWorldPosition(tempVec);
   const currentDirection = tempVec2.copy(camera.position).sub(tempVec);
+  if (selectedTarget.key === "return-observatory" && compactSolar.matches) {
+    navigationFolded = true;
+    syncNavigationFold();
+  }
+  const approachVector = selectedTarget.object.userData.approachVector;
+  if (approachVector) currentDirection.copy(approachVector);
   if (currentDirection.lengthSq() < 0.001) {
     currentDirection.copy(tempVec).normalize();
   }

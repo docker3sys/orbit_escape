@@ -29,6 +29,8 @@ public class OrbitPostcardPlugin extends Plugin {
             case "Orbit-Escape-stvor.png":
             case "Orbit-Escape-route-people.png":
             case "Orbit-Escape-route-relay.png":
+            case "Orbit-Escape-observatory-crew.png":
+            case "Orbit-Escape-observatory-relay.png":
                 return name;
             default:
                 return "Orbit-Escape-beacon.png";

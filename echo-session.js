@@ -28,7 +28,7 @@ export function echoProgress(choice) {
 
 // Each inherited ending keeps its own radio log so replaying the first episode
 // with a different cargo never erases an established route.
-export function openEcho({choice, startMuted, onMute, onExit}) {
+export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const fresh = () => ({version:1, choice, phase:"listen", samples:{a:false,b:false}, position:null});
   let state = echoProgress(choice) ?? fresh();
@@ -112,6 +112,9 @@ export function openEcho({choice, startMuted, onMute, onExit}) {
     if (!active) return;
     switch (name) {
       case "exit": finish(); break;
+      case "last":
+        if (state.phase === "arrived") {remember();stop();onLast();}
+        break;
       case "capture": flight.interact(); break;
       case "mute":
         muted=!muted;

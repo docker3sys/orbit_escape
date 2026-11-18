@@ -1,3 +1,4 @@
+import { drawLastCard } from "./last-card-art.js";
 import { drawRouteCard } from "./echo-route-art.js";
 
 const memories = {
@@ -132,4 +133,24 @@ export async function saveRouteCard(choice) {
 
 export function shareRouteCard(choice) {
   return shareFile(prepareRouteCard, choice, "Orbit Escape · Два голоса");
+}
+
+export function prepareLastCard(choice) {
+  return prepareFile("observatory/" + choice, () => {
+    const canvas = drawLastCard(choice);
+    const filename = choice === "people" ? "crew" : "relay";
+    return pngFile(canvas, "Orbit-Escape-observatory-" + filename + ".png");
+  });
+}
+
+export async function saveLastCard(choice) {
+  try {
+    return await saveFile(await prepareLastCard(choice));
+  } catch {
+    return false;
+  }
+}
+
+export function shareLastCard(choice) {
+  return shareFile(prepareLastCard, choice, "Orbit Escape · Обратный свет");
 }

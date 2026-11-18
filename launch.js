@@ -1,3 +1,4 @@
+import { lastProgress, openLast } from "./last-session.js";
 import { echoProgress, openEcho } from "./echo-session.js";
 import * as THREE from "./vendor/three.module.js";
 import { preparePostcard } from "./expedition-postcard.js";
@@ -16,6 +17,8 @@ const free = document.querySelector("#solarStart");
 const nextStart = document.querySelector("#echoStart");
 const beaconTab = document.querySelector("#chapterBeacon");
 const echoTab = document.querySelector("#chapterEcho");
+const lastTab = document.querySelector("#chapterLast");
+const lastStart = document.querySelector("#lastStart");
 const fresh = document.querySelector("#freshStart");
 const status = document.querySelector("#launchStatus");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -29,8 +32,11 @@ let solar = null;
 let opening = false;
 let muted = getItem(SOUND) === "1";
 let checkpoint = readCheckpoint();
-let echoRunning = false;
-let chapter = checkpoint?.stage === "complete" || echoProgress("relay") || echoProgress("people") ? "echo" : "beacon";
+let otherFlightActive = false;
+const inherited = nextChoice();
+let chapter = "beacon";
+if (checkpoint?.stage === "complete" || echoProgress(inherited)) chapter = "echo";
+if (echoProgress(inherited)?.phase === "arrived" || lastProgress(inherited)) chapter = "last";
 
 function getItem(key) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -63,14 +69,20 @@ function menu(message = "") {
   hangar.hidden = false;
   status.textContent = message;
   status.hidden = !message;
-  const showEcho = chapter === "echo";
   const choice = nextChoice();
+  const showBeacon = chapter === "beacon";
+  const showEcho = chapter === "echo";
+  const showLast = chapter === "last";
   const savedEcho = showEcho && echoProgress(choice);
+  const savedLast = showLast && lastProgress(choice);
   hangar.dataset.chapter = chapter;
-  echoTab.setAttribute("aria-pressed", String(showEcho));
-  beaconTab.setAttribute("aria-pressed", String(!showEcho));
-  document.querySelector("#chapterNumber").textContent = showEcho ? "Экспедиция 02" : "Экспедиция 01";
-  document.querySelector("#chapterTitle").innerHTML = showEcho ? "Два<br>голоса<span>.</span>" : "Тихий<br>маяк<span>.</span>";
+  for (const [tab, selected] of [[beaconTab,showBeacon],[echoTab,showEcho],[lastTab,showLast]]) {
+    tab.setAttribute("aria-pressed",String(selected));
+  }
+  const tab = showBeacon ? beaconTab : showEcho ? echoTab : lastTab;
+  document.querySelector("#chapterNumber").textContent = "Экспедиция " + tab.querySelector("small").textContent;
+  const titles = {beacon:"Тихий<br>маяк",echo:"Два<br>голоса",last:"Обратный<br>свет"};
+  document.querySelector("#chapterTitle").innerHTML = titles[chapter] + "<span>.</span>";
   let brief = "У Voyager 1 услышали ответ из пустого сектора. Найди источник сигнала.";
   if (showEcho) {
     brief = choice === "people"
@@ -78,12 +90,19 @@ function menu(message = "") {
       : "У «Кромки» ретранслятор принимает два голоса на одной частоте. Станция может заслонить один из них.";
     if (savedEcho?.phase === "arrived") brief = "Открытый тобой маршрут работает. Возвращайся к станции посмотреть на рейсовый челнок.";
   }
+  if (showLast) {
+    brief = "Первый челнок привёз запись из-за норы. Ответь ей знакомыми позывными и пройди к потерянной обсерватории.";
+    if (savedLast?.phase === "home") brief = "Обсерватория снова в эфире. Из её окон видно, как к станции подходит следующий рейс.";
+  }
   document.querySelector("#chapterBrief").textContent = brief;
   nextStart.hidden = !showEcho;
-  start.hidden = showEcho;
-  fresh.hidden = showEcho || !checkpoint || checkpoint.stage === "complete";
+  lastStart.hidden = !showLast;
+  start.hidden = !showBeacon;
+  fresh.hidden = !showBeacon || !checkpoint || checkpoint.stage === "complete";
   nextStart.firstChild.textContent = savedEcho?.phase === "arrived" ? "Вернуться на маршрут " :
     savedEcho ? "Продолжить поиск " : "Вылететь к «Кромке» ";
+  lastStart.firstChild.textContent = savedLast?.phase === "home" ? "Вернуться в обсерваторию " :
+    savedLast?.phase === "fly" ? "Продолжить полёт " : "Принять передачу ";
   start.firstChild.textContent = !checkpoint ? "Начать экспедицию " :
     checkpoint.stage === "complete" ? "Открыть бортовой журнал " : "Продолжить экспедицию ";
 }
@@ -91,25 +110,33 @@ function nextChoice() {
   return checkpoint?.stage === "complete" ? checkpoint.choice : "relay";
 }
 function chooseChapter(selected) {
-  if (opening || session || echoRunning) return;
+  if (opening || session || otherFlightActive) return;
   chapter = selected;
   menu();
 }
-function beginEcho() {
-  if (opening || session || echoRunning) return;
-  chapter = "echo";
-  echoRunning = true;
+function beginLater(chapterId) {
+  if (opening || session || otherFlightActive) return;
+  chapter = chapterId;
+  otherFlightActive = true;
   hangar.hidden = true;
+  const finale = chapterId === "last";
+  const enter = finale ? openLast : openEcho;
   try {
-    openEcho({
+    enter({
       choice:nextChoice(), startMuted:muted,
       onMute(value) { muted=value; writeItem(SOUND,value ? "1" : "0"); },
-      onExit() { echoRunning=false; menu(); nextStart.focus({preventScroll:true}); },
+      onExit() {
+        otherFlightActive=false;
+        menu();
+        (finale ? lastStart : nextStart).focus({preventScroll:true});
+      },
+      onLast() { otherFlightActive=false; beginLater("last"); },
+      onVisit() { otherFlightActive=false; void openSolar(true); },
     });
   } catch (error) {
-    echoRunning=false;
-    console.error("Two Voices launch",error);
-    menu("Не удалось открыть карту. Попробуй ещё раз.");
+    otherFlightActive=false;
+    console.error("Expedition launch",error);
+    menu("Не удалось открыть экспедицию. Попробуй ещё раз.");
   }
 }
 function updateUi(s) {
@@ -168,7 +195,7 @@ function act(s, action) {
   if (action === "exit") { leave(); return; }
   if (action === "echo" && s.state.stage === "complete") {
     leave();
-    beginEcho();
+    beginLater("echo");
     return;
   }
   if (action === "mute") {
@@ -208,7 +235,7 @@ function tick(s,time) {
 }
 
 function begin(reset=false) {
-  if (opening || session || echoRunning) return;
+  if (opening || session || otherFlightActive) return;
   const saved = !reset && checkpoint;
   const s = {
     state:{stage:saved?.stage || "scan",choice:saved?.choice || null,reducedMotion:reduced.matches},
@@ -251,18 +278,25 @@ function begin(reset=false) {
 
 beaconTab.addEventListener("click",()=>chooseChapter("beacon"));
 echoTab.addEventListener("click",()=>chooseChapter("echo"));
-nextStart.addEventListener("click",beginEcho);
+lastTab.addEventListener("click",()=>chooseChapter("last"));
+nextStart.addEventListener("click",()=>beginLater("echo"));
+lastStart.addEventListener("click",()=>beginLater("last"));
 start.addEventListener("click",()=>begin());
 fresh.addEventListener("click",()=>{
   if (window.confirm("Начать новый рейс и заменить текущее сохранение?")) begin(true);
 });
-free.addEventListener("click",async()=>{
-  if (opening || session || echoRunning) return;
+free.addEventListener("click",()=>openSolar(false));
+async function openSolar(visit) {
+  if (opening || session || otherFlightActive) return;
   opening=true;free.disabled=true;start.disabled=true;
   try {
     solarView.hidden=false;
     solar ??= await import("./app.js");
+    const preferred=nextChoice();
+    const unlocked=[preferred,preferred==="people" ? "relay" : "people"].find(key=>lastProgress(key)?.unlocked);
+    if (unlocked) solar.setObservatoryUnlocked(unlocked);
     solar.resumeSolarFlight();
+    if (visit && unlocked) solar.visitObservatory();
     hangar.hidden=true;
   } catch(err) {
     console.error("Solar flight",err);
@@ -270,7 +304,7 @@ free.addEventListener("click",async()=>{
   } finally {
     opening=false;free.disabled=false;start.disabled=false;
   }
-});
+}
 document.querySelector("#solarMenu").addEventListener("click",()=>{solar?.pauseSolarFlight();menu();free.focus();});
 window.addEventListener("keydown",event=>{
   const s=session;

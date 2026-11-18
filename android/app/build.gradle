@@ -20,7 +20,7 @@ android {
         preview {
             initWith debug
             applicationIdSuffix '.preview'
-            versionNameSuffix '-quiet-beacon.2'
+            versionNameSuffix '-quiet-beacon.3'
             matchingFallbacks = ['debug']
         }
         release {
@@ -32,7 +32,7 @@ android {
 
 androidComponents {
     onVariants(selector().withBuildType("preview")) { variant ->
-        variant.outputs.each { output -> output.versionCode.set(2) }
+        variant.outputs.each { output -> output.versionCode.set(3) }
     }
 }
 

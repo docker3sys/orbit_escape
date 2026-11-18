@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./launch.css" />
     <link rel="stylesheet" href="./expedition.css" />
     <link rel="stylesheet" href="./echo.css" />
+    <link rel="stylesheet" href="./last.css" />
   </head>
   <body>
     <main id="game" hidden>
@@ -67,6 +68,7 @@
         <div class="chapter-picker" role="group" aria-label="Выбор экспедиции">
           <button id="chapterBeacon" type="button" aria-pressed="true"><small>01</small> Тихий маяк</button>
           <button id="chapterEcho" type="button" aria-pressed="false"><small>02</small> Два голоса</button>
+          <button id="chapterLast" type="button" aria-pressed="false"><small>03</small> Обратный свет</button>
         </div>
       </header>
       <section class="hangar-intro" aria-labelledby="chapterTitle">
@@ -76,6 +78,7 @@
         <div class="hangar-actions">
           <button id="beaconStart" type="button">Начать экспедицию <span aria-hidden="true">→</span></button>
           <button id="echoStart" type="button" hidden>Вылететь к «Кромке» <span aria-hidden="true">→</span></button>
+          <button id="lastStart" type="button" hidden>Принять передачу <span aria-hidden="true">→</span></button>
           <button id="solarStart" type="button">Свободный полёт</button>
         </div>
         <button id="freshStart" class="fresh-start" type="button" hidden>Начать заново</button>

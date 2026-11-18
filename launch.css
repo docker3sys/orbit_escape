@@ -57,3 +57,15 @@
 @media(max-height:480px) and (orientation:landscape){
  .chapter-picker{padding:2px}.chapter-picker button{min-height:31px;font-size:12px}
 }
+
+#lastStart{background:#d5c5f4;color:#251d35}#lastStart span{margin-left:10px}
+#hangar[data-chapter=last]{background-image:linear-gradient(90deg,#050910a8,rgba(7,11,19,.26) 39%,transparent 66%),linear-gradient(0deg,#04050d9c,transparent 40%),url("./assets/last-cover.jpg")}
+#hangar[data-chapter=last] .chapter-number,#hangar[data-chapter=last] h1 span{color:#d5c5f4}
+#hangar[data-chapter=last] .chapter-number>span{background:#cbb4ef}
+@media(max-width:700px) and (orientation:portrait){
+  .chapter-picker{width:100%;display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:1px}
+  .chapter-picker button{padding:8px 4px;gap:4px;font-size:clamp(10px,2.66vw,14px)}
+  .chapter-picker small{font-size:9px}
+  #hangar[data-chapter=last]{background-image:linear-gradient(0deg,#070b10 5%,rgba(5,10,15,.92) 30%,transparent 62%),url("./assets/last-cover.jpg");background-position:center,68% 2%}
+  #hangar[data-chapter=last] h1{font-size:clamp(48px,13.1vw,92px)}
+}

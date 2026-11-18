@@ -67,7 +67,7 @@ export function createEchoUI(parent, handlers) {
       <div class="echo-end" data-ref="end" hidden>
         <button class="echo-primary" type="button" data-action="share-card">${icon('share')}<span>Поделиться картой</span></button>
         <button class="echo-secondary" type="button" data-action="save-card">${icon('download')}<span>Сохранить карту</span></button>
-        <div class="echo-endnav"><button type="button" data-action="replay">${icon('replay')} Повторить</button><button type="button" data-action="exit">В ангар <span aria-hidden="true">→</span></button></div>
+        <div class="echo-endnav"><button type="button" data-action="last">Обратный свет →</button><button type="button" data-action="replay">${icon('replay')} Повторить</button><button type="button" data-action="exit">В ангар <span aria-hidden="true">→</span></button></div>
       </div>
     </section>`;
   parent.append(root);
@@ -155,8 +155,8 @@ export function createEchoUI(parent, handlers) {
       setText(ref.source, 'Маршрут открыт');
       setText(ref.objective, 'Первый рейс на линии');
       setText(ref.instructions, isPeople
-        ? 'Первый челнок вышел с «Кромки» к норе. Со «Створа» механик отбивает ему знакомый позывной.'
-        : 'Ретранслятор ведёт первый челнок от «Кромки» к норе. Теперь смены смогут летать по расписанию.');
+        ? 'Первый челнок вышел с «Кромки» к норе. Со «Створа» отвечает механик. В журнале челнока остались три коротких импульса «Кромки».'
+        : 'Ретранслятор ведёт первый челнок от «Кромки» к норе. В журнале челнока остались три коротких импульса «Кромки».');
     }
   }
 
