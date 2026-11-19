@@ -1,3 +1,5 @@
+import { flightPanorama } from "./cockpit-sky.js";
+
 // Flight display for WebViews without a WebGL2 context. All artwork is generated offline.
 const TAU = Math.PI * 2;
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -16,21 +18,20 @@ function surface(w, h) {
   return c;
 }
 
-function nebulaArt(rand) {
-  const c = surface(800, 560), g = c.getContext("2d");
-  g.fillStyle = "#030712";
-  g.fillRect(0, 0, c.width, c.height);
-  for (let i = 0; i < 185; i++) {
-    const x = rand()*960-80;
-    const y = 340 - Math.sin(x/300)*112 + (rand()-.5)*115;
-    const r = 10 + rand()**2*115;
-    const grad = g.createRadialGradient(x,y,0,x,y,r);
-    const rgb = i%5===0 ? "153,104,107" : i%3===0 ? "96,108,167" : "37,103,118";
-    grad.addColorStop(0,`rgba(${rgb},${.018+rand()*.069})`);
-    grad.addColorStop(1,`rgba(${rgb},0)`);
-    g.fillStyle=grad;g.fillRect(x-r,y-r,r*2,r*2);
-  }
-  return c;
+function drawPanorama(g, sky, w, h, yaw, pitch, local) {
+  if (!sky.naturalWidth) return;
+  // Match the 3D cockpit's field of view and wrap seamlessly at due north.
+  const horizontalFov = 2 * Math.atan(Math.tan(Math.PI / 6) * w / h);
+  const panoW = w * TAU / horizontalFov, panoH = h * 3;
+  const u = wrap((local ? 0.715 : 0.48) - yaw / TAU, 1);
+  const x = w / 2 - panoW * u;
+  const y = h / 2 - panoH * (0.5 - pitch / Math.PI);
+  g.save();
+  g.translate(w, 0); g.scale(-1, 1);
+  g.drawImage(sky, x, y, panoW, panoH);
+  if (x > 0) g.drawImage(sky, x - panoW, y, panoW, panoH);
+  if (x + panoW < w) g.drawImage(sky, x + panoW, y, panoW, panoH);
+  g.restore();
 }
 
 function blackHoleArt() {
@@ -138,9 +139,11 @@ function aperture(g,x,y,r,t,open,strength) {
 export function createFallbackFlight(canvas, _THREE, hooks={}) {
   const g=canvas.getContext("2d",{alpha:false});
   if(!g)throw new Error("Canvas 2D unavailable");
-  const rand=randomSequence(), sky=nebulaArt(rand), black=blackHoleArt();
+  const rand=randomSequence(), sky=flightPanorama(), black=blackHoleArt();
   const stars=Array.from({length:470},()=>({x:rand(),y:rand(),s:.5+rand()**3*1.4,b:.29+rand()*.67,warm:rand()<.19}));
   const held=new Set();
+  let stickX=0,stickY=0;
+  function stick(x,y) {stickX=x;stickY=y;}
   let stage="", choice=null, yaw=0,pitch=0,time=0,dist=0,initialDist=0,speed=0;
   let bx=0,by=0,hold=0,latched=false,warp=0,warpEvent="",hazard=0,guiding=0,dead=false;
   let W=1,H=1,pixelRatio=1,reducedMotion=false;
@@ -153,7 +156,7 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
     if(s==="deliver"&&choice==="relay"){bx=-.12;by=.085}
   }
   function reset(){
-    stage="";choice=null;time=0;yaw=0;pitch=0;warp=0;warpEvent="";speed=0;guiding=0;
+    stick(0,0);stage="";choice=null;time=0;yaw=0;pitch=0;warp=0;warpEvent="";speed=0;guiding=0;
     held.clear();
   }
   function event(name){
@@ -181,8 +184,8 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
     }
     g.setTransform(pixelRatio,0,0,pixelRatio,0,0);g.globalAlpha=1;
     g.fillStyle="#030712";g.fillRect(0,0,W,H);
-    const oX=Math.sin(yaw)*W*.09,oY=Math.sin(pitch)*H*.09;
-    g.drawImage(sky,-W*.14-oX,-H*.14+oY,W*1.28,H*1.28);
+    const local=stage==="scan"||stage==="gate"||stage==="complete";
+    drawPanorama(g,sky,W,H,yaw,pitch,local);
     const stretch=warp>0?1-warp/1.15:0;
     const scale=Math.min(W,H);
     for(const s of stars){
@@ -195,7 +198,6 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
       }
     }
     const [gx,gy]=project(bx,by);
-    const local=stage==="scan"||stage==="gate"||stage==="complete";
     if(local) {
       const [vx,vy]=project(-.17,.045);voyager(g,vx,vy,scale*.0038);
     } else {
@@ -242,7 +244,7 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
     const pulse=windowOpen?1:((phase<.07||(phase>=.2&&phase<.27))?.72:.06);
     if(held.has("left"))yaw-=dt*.85;if(held.has("right"))yaw+=dt*.85;
     if(held.has("up"))pitch+=dt*.7;if(held.has("down"))pitch-=dt*.7;
-    yaw=angle(yaw);pitch=clamp(pitch,-1.1,1.1);
+    yaw=angle(yaw+stickX*dt*1.45);pitch=clamp(pitch-stickY*dt*1.1,-1.1,1.1);
     let dx=angle(bx-yaw),dy=by-pitch;
     const error=Math.hypot(dx,dy),strength=clamp(1-error/.83,0,1),aligned=error<.17;
     const driving=held.has("thrust")||held.has("action")||guiding>0;
@@ -275,9 +277,9 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
     }
     const progress=stage==="scan"?clamp(hold/.56,0,1):initialDist>0?1-dist/initialDist:1;
     const packet={strength,pulse,phase,windowOpen,aligned,distance:dist,bearingX:clamp(dx/.70,-1,1),
-      bearingY:clamp(dy/.53,-1,1),progress,warping:warp>0};
+      bearingY:clamp(dy/.53,-1,1),progress,driving,warping:warp>0};
     draw(packet);hooks.onTelemetry?.(packet);return packet;
   }
   function dispose(){dead=true;held.clear();}
-  return {render,input,drag,reset,dispose};
+  return {render,input,drag,stick,reset,dispose};
 }

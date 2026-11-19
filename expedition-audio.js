@@ -1,3 +1,5 @@
+import { createHullScore } from "./hull-score.js";
+
 // The receiver and the score share the navigation clock, including after a missed pass.
 const CYCLE_SECONDS = 3.6;
 const CALL_NOTES = [293.665, 220, 329.628];
@@ -6,8 +8,9 @@ const AUDIO_ACTIVE = new Set(["scan", "gate", "return", "complete"]);
 
 export function createAudio() {
   let context = null;
-  let bus, echo, droneFilter, droneLevel;
+  let bus, echo, droneFilter, droneLevel, score;
   let previousPhase = null;
+  let inPassage = false;
   let mixClock = 0;
   let elapsed = 0;
   let muted = false;
@@ -29,6 +32,7 @@ export function createAudio() {
     if (!Audio || disposed) return false;
     context = new Audio();
     bus = gainNode(0, context.destination);
+    score = createHullScore(context, bus);
 
     // A filtered echo adds space to the receiver while keeping the initial pulse distinct.
     const wet = gainNode(0.17, bus);
@@ -89,6 +93,8 @@ export function createAudio() {
 
   function hush() {
     previousPhase = null;
+    inPassage = false;
+    score?.reset();
     fadeBus(0);
     clearTimeout(suspendTimer);
     const instance = context;
@@ -163,10 +169,17 @@ export function createAudio() {
     if (!canPlay() || !state || !telemetry) return;
     const step = Number.isFinite(dt) ? Math.max(0, dt) : 0;
     elapsed += Math.min(step, 0.12);
+    if (telemetry.warping && !inPassage) score.pass(0.92);
+    inPassage = Boolean(telemetry.warping);
     mixClock -= step;
     if (mixClock <= 0) {
       mixClock = 0.16;
       const nearDisk = ["approach", "choice", "deliver"].includes(state.stage);
+      let scene = nearDisk ? "shadow" : "horizon";
+      if (state.stage === "return" || state.stage === "complete") scene = state.choice === "people" ? "windows" : "antenna";
+      if (telemetry.warping) scene = "transit";
+      const load = (nearDisk ? 0.25 : 0.06) + (telemetry.driving ? 0.69 : 0);
+      score.update(scene, telemetry.warping ? 1 : load);
       const edge = nearDisk ? 405 : 255;
       const warp = telemetry.warping ? 110 : 0;
       const breathing = Math.sin(elapsed * 0.42) * 25 + Math.sin(elapsed * 0.17) * 12;
@@ -229,6 +242,7 @@ export function createAudio() {
   function dispose() {
     disposed = true;
     clearTimeout(suspendTimer);
+    score?.dispose();
     for (const osc of held) osc.stop();
     for (const osc of voices) {
       try { osc.stop(); } catch {}

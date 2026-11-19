@@ -56,7 +56,7 @@
 .last-brief p{margin:5px 0 0;max-width:53ch;color:#dacee0;font-size:clamp(13px,1.2vw,16px);line-height:1.37}
 .last-recorder{display:grid;gap:6px;min-width:0}
 .last-rx,.last-rx-meter,.last-leg-label,.last-tx,.last-return{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.last-screen .last-listen,.last-screen .last-share{
+.last-screen .last-listen{
   min-height:39px;border:1px solid #f0c7f3;border-radius:5px;padding:7px 13px;
   background:#e6bce8;color:#24102a;font-weight:700;font-size:13px;
 }
@@ -91,8 +91,6 @@
 .last-lock{color:#cfc1d1;font-size:12px}
 .last-lock-ok{color:#ffe2b7}
 .last-home{display:grid;gap:6px;min-width:0}
-.last-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.last-screen .last-save{min-height:39px;padding:7px 9px;border:1px solid #766478;background:#2d2533;font-size:13px;font-weight:650}
 .last-home svg{width:16px;height:16px}
 .last-return button{min-height:33px;padding:3px 0;color:#d9ccdd;font-size:12px}
 @media(max-width:690px) and (orientation:portrait){
@@ -111,10 +109,35 @@
   .last-screen .last-tool{width:33px;height:33px}.last-header h1{font-size:13px}
   .last-deck{gap:17px;max-height:49dvh;padding-top:6px;padding-bottom:max(6px,env(safe-area-inset-bottom));grid-template-columns:minmax(170px,1fr) minmax(250px,1fr)}
   .last-brief h2{font-size:18px;margin-top:4px}.last-brief p{font-size:12px;line-height:1.3}
-  .last-recorder{gap:3px}.last-screen .last-key{min-height:34px}.last-screen .last-listen,.last-screen .last-share,.last-screen .last-save{min-height:32px;font-size:12px}.last-screen .last-undo{min-height:25px}
+  .last-recorder{gap:3px}.last-screen .last-key{min-height:34px}.last-screen .last-listen{min-height:32px;font-size:12px}.last-screen .last-undo{min-height:25px}
 }
 
 .last-screen .last-visit{min-height:42px;justify-content:space-between;padding:8px 14px;border:1px solid #f2ca9f;background:#f0c9a4;color:#281d24;font-size:14px;font-weight:700}
-.last-screen .last-share{background:#382b3d;color:#f5e6f6;border-color:#806888}
 .last-brief .last-survey{color:#edc9a2;margin-top:9px;font-size:12px}
 @media(max-height:480px) and (orientation:landscape){.last-screen .last-visit{min-height:32px;font-size:12px}.last-brief .last-survey{margin-top:5px;font-size:11px}}
+
+@media (pointer:coarse), (hover:none) {
+  .last-screen {--last-controls-gap:max(14px,env(safe-area-inset-right));}
+  .last-screen .last-tool,.last-screen .last-undo {width:44px;height:44px;}
+  .last-screen .last-listen,.last-screen .last-key,.last-screen .last-visit,.last-screen .last-return button {min-height:44px;}
+  .last-screen[data-phase=fly] {grid-template-rows:auto minmax(0,1fr);}
+  .last-screen[data-phase=fly] .last-deck {
+    position:absolute;right:var(--last-controls-gap);left:auto;bottom:max(18px,calc(env(safe-area-inset-bottom) + 10px));
+    width:min(51vw,340px); max-height:39dvh; min-height:0;
+    display:grid; grid-template-columns:1fr; gap:7px; padding:9px 11px;
+    border:1px solid #a282a252;border-radius:9px;background:linear-gradient(115deg,#1e172bcf,#171222a6);
+    pointer-events:none;
+  }
+  html[data-hand=left] .last-screen[data-phase=fly] .last-deck {left:max(14px,env(safe-area-inset-left));right:auto;}
+  .last-screen[data-phase=fly] .last-channel {display:none;}
+  .last-screen[data-phase=fly] .last-brief h2 {font-size:16px;line-height:1.12;margin:0;}
+  .last-screen[data-phase=fly] .last-brief p {font-size:12px;line-height:1.25;margin:4px 0 0;}
+  .last-screen[data-phase=fly] .last-flight-instrument {gap:4px;}
+  .last-screen[data-phase=fly] .last-lock {font-size:11px;}
+  .last-screen[data-phase=fly] .pilot-stick-zone {--stick-rgb:236,194,230;}
+  .last-screen[data-phase=fly] .last-view canvas {cursor:default;}
+}
+@media (max-height:460px) and (orientation:landscape) and (pointer:coarse) {
+  .last-screen[data-phase=tune] .last-deck {max-height:58dvh;}
+  .last-screen[data-phase=fly] .last-deck {width:min(38vw,270px);max-height:44dvh;}
+}

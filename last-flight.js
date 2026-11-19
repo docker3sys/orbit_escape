@@ -200,6 +200,8 @@ export function createLastFlight(canvas, hooks={}) {
   let w=0,h=0,ratio=0,sky=null,clock=0,elapsed=0,active=true;
   let mode="",section=-1,passed=false,afterMiss=0,shipX=0,shipY=0,wantX=0,wantY=0;
   const held=new Set();
+  let stickX=0,stickY=0;
+  function stick(x,y) {stickX=x;stickY=y;}
   const rng=seeded(483195);
   const motes=Array.from({length:104},()=>({angle:rng()*TAU, spread:.2+rng()*1.04, z:rng(), tint:rng()}));
 
@@ -361,7 +363,10 @@ export function createLastFlight(canvas, hooks={}) {
     let dx=Number(held.has("right"))-Number(held.has("left"));
     let dy=Number(held.has("down"))-Number(held.has("up"));
     if(dx&&dy){dx*=Math.SQRT1_2;dy*=Math.SQRT1_2;}
-    if(dx||dy)steer(wantX+dx*dt*1.16,wantY+dy*dt*1.42);
+    if(dx||dy||stickX||stickY) {
+      const step = dt * Math.min(w,h) * 2.25;
+      steer(wantX + dx*dt*1.16 + stickX*step/w, wantY + dy*dt*1.42 + stickY*step/h);
+    }
     const follow=1-Math.exp(-dt*(reduced?12:8.8));
     shipX=mix(shipX,wantX,follow);shipY=mix(shipY,wantY,follow);
     afterMiss=Math.max(0,afterMiss-dt);
@@ -392,5 +397,5 @@ export function createLastFlight(canvas, hooks={}) {
       else { elapsed=0;afterMiss=.75;hooks.onEvent?.("miss"); }
     }
   }
-  return {render,steer,key,dispose() {active=false;held.clear();if(sky){sky.width=sky.height=1;sky=null;}}};
+  return {render,steer,key,stick,dispose() {active=false;held.clear();if(sky){sky.width=sky.height=1;sky=null;}}};
 }

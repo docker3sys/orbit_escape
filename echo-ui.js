@@ -1,3 +1,5 @@
+import { createPilotStick } from './pilot-stick.js';
+
 const pictures = {
   signal: '<path d="M2 15h3l2-8 3 13 3-17 3 14 2-7 2 5h2"/>',
   volume: '<path d="M4 9h4l5-4v14l-5-4H4zM16 8a6 6 0 0 1 0 8m2.5-11a10 10 0 0 1 0 14"/>',
@@ -5,8 +7,6 @@ const pictures = {
   exit: '<path d="M10 5H5v14h5m-1-7h12m-5-5 5 5-5 5"/>',
   capture: '<circle cx="12" cy="12" r="4"/><path d="M8 3H4v4m12-4h4v4M4 17v4h4m12-4v4h-4"/>',
   route: '<circle cx="5" cy="17" r="2"/><circle cx="19" cy="6" r="2"/><path d="M7 16.5c5-1 1-8 8-9l2-.5"/>',
-  download: '<path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"/>',
-  share: '<path d="M12 15V3m-4 4 4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   replay: '<path d="M4 9a8.5 8.5 0 1 1-.2 6M4 4v5h5"/>',
 };
 
@@ -31,8 +31,8 @@ function setText(element, value) {
 }
 
 const dispatch = {
-  people: ['Механик «Створа»', '«Пока мы спали, на нашей частоте заговорил второй голос».'],
-  relay: ['Ретранслятор «Кромки»', '«Приняты два позывных на одной частоте. Оба повторяются».'],
+  people: 'Механик «Створа» · Два голоса в эфире',
+  relay: 'Ретранслятор «Кромки» · Два сигнала в эфире',
 };
 
 export function createEchoUI(parent, handlers) {
@@ -49,13 +49,13 @@ export function createEchoUI(parent, handlers) {
       </div>
     </header>
     <div class="echo-map">
-      <canvas tabindex="0" aria-label="Орбитальная карта. Нажми на точку, чтобы задать курс. Клавиши со стрелками управляют кораблём."></canvas>
+      <canvas tabindex="0" aria-label="Орбитальная карта. На телефоне управляй кораблём нижним штурвалом. Точка на карте задаёт курс. На клавиатуре используй стрелки."></canvas>
       <div class="echo-toast" data-ref="toast" role="status" aria-live="polite" hidden></div>
     </div>
     <section class="echo-dock" aria-label="Бортовой приёмник">
+      <div class="pilot-stick-zone echo-stick" data-ref="stick" aria-label="Штурвал"></div>
       <div class="echo-objective">
         <div class="echo-eyeline"><span class="echo-status-dot"></span><span data-ref="source"></span></div>
-        <div class="echo-dispatch" data-ref="dispatch"></div>
         <h2 data-ref="objective"></h2>
         <p data-ref="instructions"></p>
       </div>
@@ -63,17 +63,21 @@ export function createEchoUI(parent, handlers) {
         <div class="echo-channels">${meter('a','Створ')}${meter('b','Дальний буй')}</div>
         <button class="echo-primary echo-record" type="button" data-action="capture" disabled>${icon('capture')}<span>Записать сигнал</span></button>
       </div>
-      <div class="echo-gate" data-ref="gate" hidden>${icon('route')}<div><strong>Вход в нору</strong><span data-ref="range"></span></div></div>
+      <div class="echo-gate" data-ref="gate" hidden>
+        <span data-ref="range"></span>
+        <button class="echo-primary echo-course" type="button" data-action="gate-course">${icon('route')}<span>Лечь на курс</span></button>
+      </div>
       <div class="echo-end" data-ref="end" hidden>
-        <button class="echo-primary" type="button" data-action="share-card">${icon('share')}<span>Поделиться картой</span></button>
-        <button class="echo-secondary" type="button" data-action="save-card">${icon('download')}<span>Сохранить карту</span></button>
-        <div class="echo-endnav"><button type="button" data-action="last">Обратный свет →</button><button type="button" data-action="replay">${icon('replay')} Повторить</button><button type="button" data-action="exit">В ангар <span aria-hidden="true">→</span></button></div>
+        <button class="echo-primary" type="button" data-action="last">Обратный свет <span aria-hidden="true">→</span></button>
+        <div class="echo-endnav"><button type="button" data-action="replay">${icon('replay')} Повторить</button><button type="button" data-action="exit">В ангар</button></div>
       </div>
     </section>`;
   parent.append(root);
 
   const ref = Object.fromEntries([...root.querySelectorAll('[data-ref]')].map(el => [el.dataset.ref, el]));
   const canvas = root.querySelector('canvas');
+  const stick = createPilotStick(ref.stick, (x,y) => handlers.steer?.(x,y));
+  const course = root.querySelector('[data-action=gate-course]');
   const mute = root.querySelector('[data-action=mute]');
   const capture = root.querySelector('[data-action=capture]');
   const recordLabel = capture.querySelector('span');
@@ -92,6 +96,7 @@ export function createEchoUI(parent, handlers) {
   let dragPointer = null;
   let live = true;
   let timeout;
+  const touch = matchMedia('(any-pointer: coarse)');
 
   function updateChannel(name, value, logged, isolated, shadowed) {
     const channel = channels[name];
@@ -108,7 +113,9 @@ export function createEchoUI(parent, handlers) {
 
   function update(model = {}) {
     if (!live) return;
-    phase = model.phase || 'listen';
+    const nextPhase = model.phase || 'listen';
+    if (phase !== nextPhase) stick.release();
+    phase = nextPhase;
     const isListening = phase === 'listen';
     const hasA = !!model.samples?.a;
     const hasB = !!model.samples?.b;
@@ -129,17 +136,17 @@ export function createEchoUI(parent, handlers) {
     ref.receiver.hidden = !isListening;
     ref.gate.hidden = phase !== 'gate';
     ref.end.hidden = phase !== 'arrived';
-    ref.dispatch.hidden = !isIntro;
+    ref.stick.hidden = phase === 'arrived';
     if (isListening) {
-      const [source, message] = dispatch[isPeople ? 'people' : 'relay'];
+      const source = dispatch[isPeople ? 'people' : 'relay'];
       setText(ref.source, isIntro ? source : 'Бортовой приёмник');
-      if (isIntro) setText(ref.dispatch, message);
-      setText(ref.objective, canCapture ? 'Чистый голос ' + canCapture.toUpperCase() :
+      setText(ref.objective, canCapture ? 'Слышу ' + canCapture.toUpperCase() :
         hasA ? 'Найди голос B' : hasB ? 'Найди голос A' : 'Раздели два сигнала');
-      const help = canCapture ? 'Приём чистый. Запиши позывной, пока корабль в тени.' :
-        hasA ? 'Укройся от «Створа» за корпусом станции, чтобы услышать дальний буй.' :
-        hasB ? 'Укройся от дальнего буя за корпусом станции, чтобы услышать «Створ».' :
-        'Нажми на карту и заведи корабль в тень станции от одного из маяков.';
+      const help = canCapture ? 'Сигнал чистый. Запиши позывной.' :
+        hasA ? 'Веди корабль в янтарный сектор за станцией.' :
+        hasB ? 'Веди корабль в бирюзовый сектор за станцией.' :
+        touch.matches ? 'Штурвалом веди корабль в один из цветных секторов.' :
+        'Задай курс щелчком или веди стрелками в цветной сектор.';
       setText(ref.instructions, help);
       updateChannel('a', model.a, hasA, canCapture === 'a', model.occludedA);
       updateChannel('b', model.b, hasB, canCapture === 'b', model.occludedB);
@@ -148,9 +155,11 @@ export function createEchoUI(parent, handlers) {
     } else if (phase === 'gate') {
       setText(ref.source, 'Оба позывных записаны');
       setText(ref.objective, 'Подведи корабль к норе');
-      setText(ref.instructions, 'Из двух сигналов сложились координаты входа. Нажми на открывшееся кольцо.');
+      setText(ref.instructions, 'Веди к светлому кольцу или проложи курс.');
       const distance = Number(model.targetDistance);
-      setText(ref.range, model.nearGate ? 'Вход рядом' : Number.isFinite(distance) ? Math.ceil(Math.max(0, distance)) + ' ед. до входа' : 'Координаты определены');
+      setText(ref.range, Number.isFinite(distance) ? Math.ceil(Math.max(0, distance)) + ' ед. до прохода' : 'Координаты определены');
+      course.disabled = !!model.onGateCourse;
+      setText(course.querySelector('span'), model.onGateCourse ? 'Идём к кольцу' : 'Лечь на курс');
     } else if (phase === 'arrived') {
       setText(ref.source, 'Маршрут открыт');
       setText(ref.objective, 'Первый рейс на линии');
@@ -193,7 +202,8 @@ export function createEchoUI(parent, handlers) {
     timeout = setTimeout(() => { ref.toast.hidden = true; }, 2400);
   }
   update();
-  return {canvas, root, update, toast, destroy() {
+  return {canvas, root, update, toast, release:stick.release, destroy() {
+    stick.destroy();
     live = false;
     clearTimeout(timeout);
     if (dragPointer !== null && canvas.hasPointerCapture?.(dragPointer)) canvas.releasePointerCapture(dragPointer);

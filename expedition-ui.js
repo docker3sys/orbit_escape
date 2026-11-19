@@ -1,4 +1,4 @@
-import { savePostcard, sharePostcard } from './expedition-postcard.js';
+import { createPilotStick } from './pilot-stick.js';
 
 const HUD_ICONS = {
   audible: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8a6 6 0 0 1 0 8m2.5-11a10 10 0 0 1 0 14"/>',
@@ -12,7 +12,6 @@ const HUD_ICONS = {
   brake: '<path d="M8 6v12m8-12v12"/>',
   people: '<circle cx="9" cy="9" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m0-14a3 3 0 0 1 0 6m2 2a5 5 0 0 1 4 5"/>',
   relay: '<path d="m8 21 4-10 4 10m-6-4h4"/><circle cx="12" cy="8" r="1"/><path d="M8.5 4.5a5 5 0 0 0 0 7m7-7a5 5 0 0 1 0 7M6 2a8.5 8.5 0 0 0 0 12m12-12a8.5 8.5 0 0 1 0 12"/>',
-  share: '<path d="M12 15V3m-4 4 4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   save: '<path d="M4 3h13l3 3v15H4z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/>',
 };
 const icon = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HUD_ICONS[name] || ''}</svg>`;
@@ -23,6 +22,14 @@ const FLIGHT_STAGES = {
   approach: { label: 'Сближение', title: 'Дойди до «Кромки»', instruction: 'Следи за буями и держи курс на станцию у диска.', action: 'Стыковка', place: 'Окрестности «Кромки»' },
   deliver: { label: 'Рейс буксира', title: 'Доставь груз', instruction: 'Поверни к метке и удерживай тягу до точки назначения.', action: 'Доставить', place: 'Линия буксира' },
   return: { label: 'Обратный путь', title: 'Вернись к Voyager 1', instruction: 'Найди кольцо, пройди по знакомому позывному и услышь ответ.', action: 'Вернуться', place: 'Обратный маршрут' },
+};
+
+const TOUCH_HINTS = {
+  scan:'Сдвинь стик в сторону янтарной метки. Отпусти, когда она окажется в прицеле.',
+  gate:'Совмести метку с прицелом и включи тягу. Корабль войдёт в открытый створ.',
+  approach:'Включи тягу и держи метку станции в прицеле.',
+  deliver:'Включи тягу и держи курс на метку.',
+  return:'Совмести метку с прицелом и включи тягу, чтобы вернуться.',
 };
 
 function toolbarButton(action, name, label) {
@@ -49,6 +56,8 @@ export function createExpeditionUI(parent, callbacks = {}) {
     </header>
     <section class="oe-flight" data-ref="flight" hidden>
       <div class="oe-sight" data-ref="sight" aria-hidden="true"><i class="oe-bracket"></i><i class="oe-dot"></i><i class="oe-mark" data-ref="bearing"></i></div>
+      <div class="pilot-stick-zone" data-ref="stick"></div>
+      <button class="oe-cruise" type="button" data-action="cruise" aria-pressed="false">${icon('thrust')}<span>Дать тягу</span></button>
       <div class="oe-console">
         <div class="oe-navpad" role="group" aria-label="Поворот корабля">
           ${steerButton('up','Нос вверх')}${steerButton('left','Поворот влево')}${steerButton('right','Поворот вправо')}${steerButton('down','Нос вниз')}
@@ -69,6 +78,18 @@ export function createExpeditionUI(parent, callbacks = {}) {
   parent.append(root);
   const ref = Object.fromEntries(Array.from(root.querySelectorAll('[data-ref]'), el => [el.dataset.ref, el]));
   const canvas = root.querySelector('canvas');
+  const coarse = matchMedia('(pointer:coarse), (hover:none)');
+  const pilot = createPilotStick(ref.stick, (x,y) => callbacks.stick?.(x,y));
+  const cruiseButton = root.querySelector('.oe-cruise');
+  let cruising = false, cruisePointer = null;
+  function setCruise(on) {
+    if (on === cruising) return;
+    cruising = on;
+    callbacks.control?.('thrust',on);
+    cruiseButton.setAttribute('aria-pressed',String(on));
+    cruiseButton.querySelector('span').textContent = on ? 'Сбросить тягу' : 'Дать тягу';
+  }
+
   const interactLabel = root.querySelector('[data-action="interact"] span');
   const muteButton = root.querySelector('[data-action="mute"]');
   const meterBars = Array.from(ref.meter.children);
@@ -84,56 +105,13 @@ export function createExpeditionUI(parent, callbacks = {}) {
     toastTimer = setTimeout(() => { ref.toast.hidden = true; }, 2300);
   }
 
-  function finishText(choice) {
-    return choice === 'people'
-      ? 'Я нашёл станцию за кротовой норой и вернул свет на заброшенный пост. Мой позывной в Orbit Escape — «Створ». Какой ответ поймаешь ты?'
-      : 'Я провёл корабль у чёрной дыры и вернул голос далёкой станции. Мой позывной в Orbit Escape — «Кромка». Какой ответ поймаешь ты?';
-  }
-
-  async function shareResult() {
-    try {
-      if (await sharePostcard(model.choice)) return;
-    } catch { /* Text sharing is available when file sharing is unsupported. */ }
-    const text = finishText(model.choice);
-    const url = model.shareUrl;
-    const payload = {title: 'Orbit Escape · Тихий маяк', text};
-    if (typeof url === 'string' && /^https?:\/\//i.test(url)) payload.url = url;
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share(payload);
-        return;
-      } catch (err) {
-        if (err?.name === 'AbortError') return;
-      }
-    }
-    const copy = payload.url ? text + '\n' + payload.url : text;
-    try {
-      await navigator.clipboard.writeText(copy);
-      toast('Позывной скопирован');
-    } catch {
-      if (!active) return;
-      let field = ref.card.querySelector('.oe-share-text');
-      if (!field) {
-        field = document.createElement('textarea');
-        field.className = 'oe-share-text';
-        field.readOnly = true;
-        field.setAttribute('aria-label', 'Текст для отправки');
-        ref.card.append(field);
-      }
-      field.value = copy;
-      field.focus();
-      field.select();
-      toast('Текст выделен для копирования');
-    }
-  }
-
   function renderPanel(stage, saved, choice) {
     let html = '';
     if (confirmedRestart) {
       html = `<div class="oe-tag">${icon('save')} Бортовой журнал</div><h1 id="oe-dialog-title">Начать заново?</h1><p>Новый рейс заменит запись этой экспедиции.</p><div class="oe-actions">${command('cancel-new','Остаться','major',null)}${command('confirm-new','Начать заново','quiet',null)}</div>`;
     } else if (stage === 'welcome') {
       html = `<div class="oe-tag">${icon('wave')} Экспедиция</div><h1 id="oe-dialog-title">Тихий маяк</h1><p>У Voyager 1 сквозь помехи слышен ответ. Его источник прячется в пустом участке неба.</p>
-       <div class="oe-brief">${icon('thrust')}<span>Проведи по небу, чтобы повернуть корабль. Для полёта удерживай «Тяга».</span></div>
+       <div class="oe-brief">${icon('thrust')}<span>${coarse.matches ? 'Сдвинь стик, чтобы повернуть корабль. Отпусти его, чтобы удержать курс.' : 'Проведи по небу или нажимай стрелки, чтобы повернуть корабль. Для полёта удерживай «Тяга». '}</span></div>
        <div class="oe-actions">${saved ? command('resume','Продолжить рейс')+command('new','Начать заново','quiet',null) : command('new','Начать экспедицию')}</div>`;
     } else if (stage === 'choice') {
       html = `<div class="oe-tag">${icon('wave')} Станция «Кромка»</div><h1 id="oe-dialog-title">На один рейс</h1><p>На станции 18 жителей. Заряда буксира хватит на один перелёт с грузом. Кого или что возьмём на борт?</p>
@@ -146,7 +124,7 @@ export function createExpeditionUI(parent, callbacks = {}) {
       html = `<div class="oe-tag">${icon('check')} Экспедиция завершена</div>
       <h1 id="oe-dialog-title">${people ? '«Створ» на связи' : 'Чистый эфир'}</h1><p>${people ? 'Шесть окон на заброшенном посту снова светятся. У Voyager слышны две короткие ноты нового позывного «Створа».' : 'Сквозь помехи пробивается одиночная нота ретранслятора. Установленный тобой маяк держит проход открытым дольше.'}</p>
       <div class="oe-tally"><div><small>Кромка</small><strong>${people ? '12' : '18'}</strong><span>жителей</span></div><div><small>Створ</small><strong>${people ? '6' : '0'}</strong><span>жителей</span></div><div><small>Радиомаяк</small><strong class="oe-tally-word">${people ? 'В резерве' : 'В эфире'}</strong></div></div>
-      <div class="oe-actions">${command('echo','Далее · Два голоса','major','next')}${command('share','Поделиться позывным','quiet','share')}${command('postcard','Сохранить открытку','quiet','save')}${command('new','Пройти ещё раз','quiet',null)}</div>`;
+      <div class="oe-actions">${command('echo','Далее · Два голоса','major','next')}${command('new','Пройти ещё раз','quiet',null)}</div>`;
     }
     ref.card.innerHTML = html;
     ref.panel.hidden = !html;
@@ -169,6 +147,9 @@ export function createExpeditionUI(parent, callbacks = {}) {
     const key = [stage, Boolean(model.saved), model.choice, confirmedRestart].join('|');
     if (stageToken !== key) {
       stageToken = key;
+      cruisePointer=null;
+      setCruise(false);
+      pilot.release();
       for (const [pointerId, key] of held) stopControl(pointerId, key);
       dragPointer = undefined;
       renderPanel(stage, Boolean(model.saved), model.choice);
@@ -188,7 +169,7 @@ export function createExpeditionUI(parent, callbacks = {}) {
     if (isPanel || confirmedRestart) return;
     setText(ref.phase, model.warping ? 'Переход' : data.label);
     setText(ref.title, model.title || data.title);
-    setText(ref.instruction, model.instruction || data.instruction);
+    setText(ref.instruction, coarse.matches ? TOUCH_HINTS[stage] : (model.instruction || data.instruction));
     setText(interactLabel, model.actionLabel || data.action);
     const distance = typeof model.distance === 'number' && Number.isFinite(model.distance)
       ? `${Math.max(0, Math.round(model.distance))} ед.` : (typeof model.distance === 'string' ? model.distance : '');
@@ -219,9 +200,9 @@ export function createExpeditionUI(parent, callbacks = {}) {
     const button = e.target.closest('[data-action]');
     if (!button) return;
     const action = button.dataset.action;
-    if (action === 'share') return void shareResult();
-    if (action === 'postcard') {
-      void savePostcard(model.choice).then(ok => toast(ok ? 'Открытка готова' : 'Не удалось сохранить открытку')).catch(() => toast('Не удалось сохранить открытку'));
+    if (action === 'cruise') {
+      // Pointer activation is handled separately so a second thumb works while steering.
+      if (e.detail === 0) toggleCruise();
       return;
     }
     if (action === 'new' && (model.saved || model.stage === 'complete')) {
@@ -232,6 +213,24 @@ export function createExpeditionUI(parent, callbacks = {}) {
     callbacks.action?.(action);
   });
 
+  function toggleCruise() {
+    if (['gate','approach','deliver','return'].includes(model.stage)) setCruise(!cruising);
+  }
+  cruiseButton.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || cruisePointer !== null) return;
+    e.preventDefault();
+    cruisePointer = e.pointerId;
+    cruiseButton.setPointerCapture(e.pointerId);
+  });
+  cruiseButton.addEventListener('pointerup', e => {
+    if (cruisePointer !== e.pointerId) return;
+    cruisePointer = null;
+    const box = cruiseButton.getBoundingClientRect();
+    if (e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom) toggleCruise();
+  });
+  for (const event of ['pointercancel','lostpointercapture']) cruiseButton.addEventListener(event, e => {
+    if (cruisePointer === e.pointerId) cruisePointer=null;
+  });
   function stopControl(pointerId, key) {
     held.delete(pointerId);
     if ([...held.values()].includes(key)) return;
@@ -239,6 +238,9 @@ export function createExpeditionUI(parent, callbacks = {}) {
     callbacks.control?.(key, false);
   }
   function releaseAll() {
+    cruisePointer=null;
+    setCruise(false);
+    pilot.release();
     for (const [id,key] of held) stopControl(id,key);
     dragPointer = undefined;
   }
@@ -288,11 +290,15 @@ export function createExpeditionUI(parent, callbacks = {}) {
   for (const event of ['pointerup','pointercancel','lostpointercapture']) root.addEventListener(event,release);
   window.addEventListener('blur',releaseAll);
   document.addEventListener('visibilitychange',releaseAll);
+  document.addEventListener('freeze',releaseAll);
+  window.addEventListener('pagehide',releaseAll);
   update({stage:'welcome'});
   return {canvas, root, update, toast, destroy() {
-    active=false; releaseAll(); clearTimeout(toastTimer);
+    active=false; releaseAll(); pilot.destroy(); clearTimeout(toastTimer);
     window.removeEventListener('blur',releaseAll);
     document.removeEventListener('visibilitychange',releaseAll);
+    document.removeEventListener('freeze',releaseAll);
+    window.removeEventListener('pagehide',releaseAll);
     root.remove();
   }};
 }

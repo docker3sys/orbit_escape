@@ -1,7 +1,6 @@
 import { createLastFlight } from "./last-flight.js";
 import { createLastUI } from "./last-ui.js";
 import { createLastAudio } from "./last-audio.js";
-import { prepareLastCard, saveLastCard, shareLastCard } from "./expedition-postcard.js";
 
 const log = new Map();
 const signals = ["a","b","c"];
@@ -93,7 +92,6 @@ export function openLast({choice,startMuted,onMute,onExit,onVisit}) {
       const home=leg===3;
       state={...state,leg,phase:home?"home":"fly",unlocked:state.unlocked||home};
       sound.cue(home?"home":"pass");
-      if (home) prepareLastCard(choice).catch(()=>{});
     } else return;
     remember();paint();
   }
@@ -105,13 +103,6 @@ export function openLast({choice,startMuted,onMute,onExit,onVisit}) {
     if (!active) return;
     active=false;events.abort();cancelAnimationFrame(frame);
     silenceTape();release();flight?.dispose();sound.dispose();ui?.destroy();
-  }
-  async function card(name) {
-    if (state.phase!=="home") return;
-    try {
-      if (name==="share-card" && await shareLastCard(choice)) return;
-      if (await saveLastCard(choice) && active) ui.toast(name==="share-card"?"Открытка готова к отправке из загрузок.":"Открытка сохранена.");
-    } catch { if (active) ui.toast("Не удалось сохранить открытку. Попробуй ещё раз."); }
   }
   function action(name) {
     if (!active) return;
@@ -135,7 +126,6 @@ export function openLast({choice,startMuted,onMute,onExit,onVisit}) {
           flight=createLastFlight(ui.canvas,hooks);remember();paint();
         }
         break;
-      case "save-card": case "share-card": void card(name);break;
     }
   }
   const hooks={onTelemetry:data=>{telemetry=data;},onEvent:flightEvent};
@@ -152,9 +142,11 @@ export function openLast({choice,startMuted,onMute,onExit,onVisit}) {
   const bind=(target,name,fn)=>target.addEventListener(name,fn,{signal:events.signal});
   try {
     sound.mute(muted);sound.unlock();
-    ui=createLastUI(document.body,{action,steer:(x,y)=>{if(state.phase==="fly")flight?.steer(x,y);}});
+    ui=createLastUI(document.body,{
+      action, steer:(x,y)=>{if(state.phase==="fly")flight?.steer(x,y);},
+      stick:(x,y)=>flight?.stick(x,y)
+    });
     flight=createLastFlight(ui.canvas,hooks);
-    if (state.phase==="home") prepareLastCard(choice).catch(()=>{});
     remember();paint();ui.canvas.focus({preventScroll:true});
     bind(window,"keydown",e=>{
       if(e.ctrlKey||e.altKey||e.metaKey)return;

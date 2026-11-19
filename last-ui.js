@@ -1,11 +1,11 @@
+import { createPilotStick } from './pilot-stick.js';
+
 const icons = {
   audio: '<path d="M4 9h4l5-4v14l-5-4H4zM16 8a6 6 0 0 1 0 8m2.5-11a10 10 0 0 1 0 14"/>',
   mute: '<path d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6m0-6-5 6"/>',
   exit: '<path d="M10 4H5v16h5m-1-8h12m-5-5 5 5-5 5"/>',
   play: '<path d="M8 4.5v15L20 12z"/>',
   rewind: '<path d="m8 8-5 5 5 5m-4-5h10a5 5 0 0 0 0-10"/>',
-  save: '<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>',
-  share: '<path d="M12 15V3m-4 4 4-4 4 4M5 12v8h14v-8"/>',
   receiver: '<path d="M2 14h3l2-4 3 7 4-13 3 15 2-6h3"/>',
 };
 const channels = [
@@ -38,7 +38,7 @@ export function createLastUI(parent, handlers) {
       <div class="last-tools">${tool('mute','audio','Выключить звук')}${tool('exit','exit','В ангар')}</div>
     </header>
     <div class="last-view">
-      <canvas tabindex="0" aria-label="Панорама полёта. Во время перехода веди корабль касанием или стрелками."></canvas>
+      <canvas tabindex="0" aria-label="Панорама полёта. Во время перехода веди корабль стиком, мышью или стрелками."></canvas>
       <div class="last-toast" role="status" data-ref="toast" hidden></div>
     </div>
     <section class="last-deck" aria-label="Пульт навигации">
@@ -72,20 +72,19 @@ export function createLastUI(parent, handlers) {
       </div>
       <div class="last-home" data-pane="home" hidden>
         <button type="button" class="last-visit" data-action="visit">К обсерватории <span aria-hidden="true">→</span></button>
-        <div class="last-card-actions">
-          <button type="button" class="last-share" data-action="share-card">${icon('share')} Поделиться</button>
-          <button type="button" class="last-save" data-action="save-card">${icon('save')} Сохранить снимок</button>
-        </div>
         <div class="last-return">
           <button type="button" data-action="replay">Повторить полёт</button>
           <button type="button" data-action="exit">В ангар&nbsp; →</button>
         </div>
       </div>
-    </section>`;
+    </section>
+    <div class="pilot-stick-zone" data-ref="stick" hidden></div>`;
   parent.append(root);
 
   const canvas = root.querySelector('canvas');
   const refs = Object.fromEntries(Array.from(root.querySelectorAll('[data-ref]'), node => [node.dataset.ref,node]));
+  const coarse = matchMedia('(pointer:coarse), (hover:none)');
+  const pilot = createPilotStick(refs.stick, (x,y)=>handlers.stick?.(x,y));
   const panes = Array.from(root.querySelectorAll('[data-pane]'));
   const entry = root.querySelector('.last-entry');
   const noteKeys = Array.from(root.querySelectorAll('.last-key'));
@@ -119,7 +118,9 @@ export function createLastUI(parent, handlers) {
     if (!alive) return;
     const next = ['tune','fly','home'].includes(model.phase) ? model.phase : 'tune';
     if (phase !== next) {
+      pilot.release();
       phase=next;
+      refs.stick.hidden=phase!=='fly';
       root.dataset.phase=phase;
       for (const pane of panes) pane.hidden=pane.dataset.pane!==phase;
       refs.survey.hidden=phase!=="home";
@@ -142,7 +143,7 @@ export function createLastUI(parent, handlers) {
       const progress=Math.max(0,Math.min(1,Number(model.progress)||0));
       set(refs.source,'Коридор к обсерватории');
       set(refs.title,'Пройди через светлое кольцо');
-      set(refs.hint,'Веди прицел пальцем или стрелками. Совмести его с центром кольца и удерживай до прохода.');
+      set(refs.hint,coarse.matches ? 'Сдвинь стик к кольцу. Отпусти, чтобы удержать курс.' : 'Веди прицел мышью или стрелками. Совмести его с кольцом до прохода.');
       set(refs.range,(leg+1)+' из 3');
       set(refs.lock,model.aligned?'Курс совпал':'Наведи корабль на кольцо');
       refs.lock.classList.toggle('last-lock-ok',Boolean(model.aligned));
@@ -165,7 +166,7 @@ export function createLastUI(parent, handlers) {
     handlers.steer?.(cap(2*(event.clientX-bounds.left)/bounds.width-1),cap(2*(event.clientY-bounds.top)/bounds.height-1));
   }
   canvas.addEventListener('pointerdown', event => {
-    if (phase!=='fly' || event.button!==0 || drag!==null) return;
+    if (phase!=='fly' || event.pointerType==='touch' || event.button!==0 || drag!==null) return;
     event.preventDefault();
     drag=event.pointerId;canvas.focus({preventScroll:true});
     canvas.setPointerCapture?.(drag);aim(event);
@@ -190,7 +191,7 @@ export function createLastUI(parent, handlers) {
   }
   update();
   return {canvas,update,toast,destroy() {
-    alive=false;
+    alive=false;pilot.destroy();
     clearTimeout(toastTimer);
     if (drag!==null && canvas.hasPointerCapture?.(drag)) canvas.releasePointerCapture(drag);
     root.remove();

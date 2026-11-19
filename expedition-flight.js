@@ -1,3 +1,5 @@
+import { flightPanorama } from "./cockpit-sky.js";
+
 // All distances in the expedition are local navigation units.
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -11,45 +13,12 @@ function seeded(seed) {
   };
 }
 
-// A precomputed equirectangular sky avoids evaluating fractal noise per frame.
 function deepSky(T, random) {
-  const width = 768, height = 384;
-  const bytes = new Uint8Array(width * height * 4);
-  const lattice = Float32Array.from({length: 4096}, random);
-  function noise(x, y) {
-    const a = Math.floor(x), b = Math.floor(y);
-    const u = x-a, v = y-b, f = u*u*(3-2*u), g = v*v*(3-2*v);
-    const index = ((b & 63) << 6) | (a & 63);
-    const next = ((b & 63) << 6) | ((a+1) & 63);
-    const row = (index + 64) & 4095, rowNext = (next + 64) & 4095;
-    return (lattice[index] * (1-f) + lattice[next] * f) * (1-g)
-      + (lattice[row] * (1-f) + lattice[rowNext] * f) * g;
-  }
-  for (let y=0; y<height; y++) {
-    for (let x=0; x<width; x++) {
-      const u=x/width, v=y/height;
-      const lat=(v-.5)*Math.PI, lon=u*TAU;
-      const dx=Math.cos(lon)*Math.cos(lat), dy=Math.sin(lat), dz=Math.sin(lon)*Math.cos(lat);
-      const nx=dx*.63 + dz*.77, ny=dy*.95 + dx*.12 - dz*.22;
-      const broad=noise(nx*4+28,ny*4+13), mid=noise(nx*12+31,ny*14+19);
-      const fine=noise(nx*34+20,ny*40+51), dust=noise(nx*77+22,ny*84+3);
-      const lane=ny + .11*Math.sin(3*lon) - .08*(broad-.5);
-      const envelope=Math.exp(-Math.pow(lane/.24,2)) * Math.cos(lat)**2;
-      const filament=clamp((broad*.42+mid*.34+fine*.18+dust*.06-.25)*1.9,0,1);
-      const shadow=.45+.55*clamp(Math.abs(lane+.05*(mid-.5))/.055,0,1);
-      const cloud=envelope*filament*filament*shadow;
-      const warm=.5+.5*Math.sin(lon+.2);
-      const i=(x+y*width)*4;
-      bytes[i]=Math.round(3.4 + cloud*(30+42*warm));
-      bytes[i+1]=Math.round(7 + cloud*(54-12*warm));
-      bytes[i+2]=Math.round(16 + cloud*(75+7*warm));
-      bytes[i+3]=255;
-    }
-  }
-  const tex=new T.DataTexture(bytes,width,height,T.RGBAFormat);
-  tex.minFilter=tex.magFilter=T.LinearFilter;
-  tex.colorSpace=T.SRGBColorSpace;
-  tex.needsUpdate=true;
+  const tex = new T.Texture();
+  tex.colorSpace = T.SRGBColorSpace;
+  tex.minFilter = tex.magFilter = T.LinearFilter;
+  tex.generateMipmaps = false;
+  flightPanorama(image => { tex.image = image; tex.needsUpdate = true; });
   const group=new T.Group();
   const sky=new T.Mesh(new T.SphereGeometry(390,40,24),new T.MeshBasicMaterial({map:tex, side:T.BackSide,depthWrite:false,toneMapped:false}));
   sky.renderOrder=-10;
@@ -325,6 +294,8 @@ export function createFlight(canvas, THREE, hooks={}) {
   const pos=camera.position, delta=new T.Vector3(), forward=new T.Vector3(), velocity=new T.Vector3(), pull=new T.Vector3(), steer=new T.Vector3();
   const safe=new T.Vector3(), target=new T.Vector3();
   const held=new Set();
+  let stickX=0,stickY=0;
+  function stick(x,y) {stickX=x;stickY=y;}
   let yaw=0,pitch=0,clock=0,lastStage=null,lastChoice=null,dwell=0,warpTime=0,warpDuration=1.35;
   let sent=null,initialDistance=1,tap=0,dockingIntent=0,oldWidth=0,oldHeight=0,oldDpr=0,disposed=false;
   let lastState={},strength=0,distance=0,ex=0,ey=0,aligned=false;
@@ -458,8 +429,8 @@ export function createFlight(canvas, THREE, hooks={}) {
     const open=phase>=(extended?.42:.48)&&phase<=(extended?.93:.83);
     const pulse=open?1:phase<.09||phase>=.20&&phase<.29?.78:0;
     if(warpTime<=0){
-      yaw=directionError(yaw+((held.has('left')?1:0)-(held.has('right')?1:0))*dt*1.45);
-      pitch=clamp(pitch+((held.has('up')?1:0)-(held.has('down')?1:0))*dt*1.1,-1.45,1.45);
+      yaw=directionError(yaw+((held.has('left')?1:0)-(held.has('right')?1:0)-stickX)*dt*1.45);
+      pitch=clamp(pitch+((held.has('up')?1:0)-(held.has('down')?1:0)-stickY)*dt*1.1,-1.45,1.45);
     }
     const thrust=held.has('thrust')||held.has('action')||tap>0;
     observeTarget();
@@ -486,7 +457,7 @@ export function createFlight(canvas, THREE, hooks={}) {
     camera.rotation.set(pitch,yaw,0,'YXZ');
     animateModels(stage,choice,phase,open,dt);
     const progress=stage==='scan'?clamp(dwell/.63,0,1):clamp(1-distance/initialDistance,0,1);
-    hooks.onTelemetry?.({strength,pulse,phase,windowOpen:open,aligned,distance,bearingX:clamp(ex/.61,-1,1),bearingY:clamp(ey/.61,-1,1),progress,warping:warpTime>0});
+    hooks.onTelemetry?.({strength,pulse,phase,windowOpen:open,aligned,distance,bearingX:clamp(ex/.61,-1,1),bearingY:clamp(ey/.61,-1,1),progress,driving:thrust,warping:warpTime>0});
     renderer.render(scene,camera);
   }
   function input(action,pressed) {
@@ -498,7 +469,7 @@ export function createFlight(canvas, THREE, hooks={}) {
     const sensitivity=2.6/Math.max(350,Math.min(oldWidth||800,oldHeight||600));
     yaw=directionError(yaw-dx*sensitivity);pitch=clamp(pitch-dy*sensitivity,-1.45,1.45);
   }
-  function reset() {lastStage=null;lastChoice=null;held.clear();clock=0;tap=0;}
+  function reset() {stick(0,0);lastStage=null;lastChoice=null;held.clear();clock=0;tap=0;}
   function dispose() {
     if(disposed)return;
     disposed=true;held.clear();
@@ -511,5 +482,5 @@ export function createFlight(canvas, THREE, hooks={}) {
     materials.forEach(m=>{if(m.map)textures.add(m.map);m.dispose();});
     textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());renderer.dispose();
   }
-  return {render,input,drag,reset,dispose};
+  return {render,input,drag,stick,reset,dispose};
 }

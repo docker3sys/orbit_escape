@@ -1,7 +1,7 @@
 import { lastProgress, openLast } from "./last-session.js";
 import { echoProgress, openEcho } from "./echo-session.js";
 import * as THREE from "./vendor/three.module.js";
-import { preparePostcard } from "./expedition-postcard.js";
+import { createSolarRadio } from "./solar-radio.js";
 import { createAudio } from "./expedition-audio.js";
 import { createFlight } from "./expedition-flight.js";
 import { createFallbackFlight } from "./expedition-fallback.js";
@@ -9,6 +9,7 @@ import { createExpeditionUI } from "./expedition-ui.js";
 
 const SAVE = "orbit-escape/quiet-beacon/1";
 const SOUND = "orbit-escape/quiet-beacon/muted";
+const HAND = "orbit-escape/pilot-hand/1";
 const stages = ["scan", "gate", "approach", "choice", "deliver", "return", "complete"];
 const hangar = document.querySelector("#hangar");
 const solarView = document.querySelector("#game");
@@ -31,6 +32,49 @@ let session = null;
 let solar = null;
 let opening = false;
 let muted = getItem(SOUND) === "1";
+let radio = null;
+const handDialog = document.querySelector("#handDialog");
+const handChoices = handDialog.querySelectorAll("[data-hand-choice]");
+const hangarSound = document.querySelector("#hangarSound");
+const solarSound = document.querySelector("#solarSound");
+
+function chooseHand(preference) {
+  document.documentElement.dataset.hand = preference;
+  for (const choice of handChoices) {
+    choice.setAttribute("aria-pressed", String(choice.dataset.handChoice === preference));
+  }
+}
+chooseHand(getItem(HAND) === "left" ? "left" : "right");
+for (const choice of handChoices) {
+  choice.addEventListener("click", () => {
+    chooseHand(choice.dataset.handChoice);
+    writeItem(HAND, choice.dataset.handChoice);
+  });
+}
+document.querySelector("#handSwitch").addEventListener("click", () => handDialog.showModal());
+handDialog.addEventListener("click", event => {
+  if (event.target === handDialog) handDialog.close();
+});
+
+function setSoundMuted(value) {
+  muted = value;
+  writeItem(SOUND, value ? "1" : "0");
+  syncSoundButtons();
+}
+function syncSoundButtons() {
+  for (const button of [hangarSound, solarSound]) {
+    if (!button) continue;
+    button.textContent = muted ? "Звук выключен" : "Звук включён";
+    button.setAttribute("aria-pressed", String(!muted));
+  }
+}
+hangarSound.addEventListener("click", () => setSoundMuted(!muted));
+solarSound?.addEventListener("click", () => {
+  setSoundMuted(!muted);
+  radio?.setMuted(muted);
+});
+syncSoundButtons();
+
 let checkpoint = readCheckpoint();
 let otherFlightActive = false;
 const inherited = nextChoice();
@@ -111,8 +155,13 @@ function nextChoice() {
 }
 function chooseChapter(selected) {
   if (opening || session || otherFlightActive) return;
+  if (chapter === selected) return;
   chapter = selected;
   menu();
+  const intro = document.querySelector(".hangar-intro");
+  intro.classList.remove("is-tuning");
+  void intro.offsetWidth;
+  intro.classList.add("is-tuning");
 }
 function beginLater(chapterId) {
   if (opening || session || otherFlightActive) return;
@@ -124,7 +173,7 @@ function beginLater(chapterId) {
   try {
     enter({
       choice:nextChoice(), startMuted:muted,
-      onMute(value) { muted=value; writeItem(SOUND,value ? "1" : "0"); },
+      onMute:setSoundMuted,
       onExit() {
         otherFlightActive=false;
         menu();
@@ -150,7 +199,6 @@ function change(s, stage, choice=s.state.choice) {
   s.state = {stage,choice,reducedMotion:reduced.matches};
   s.telemetry = {};
   persist(s);
-  if (stage === "complete") preparePostcard(choice).catch(()=>{});
   updateUi(s);
 }
 const transitions = {
@@ -199,8 +247,7 @@ function act(s, action) {
     return;
   }
   if (action === "mute") {
-    muted = !muted;
-    writeItem(SOUND,muted ? "1" : "0");
+    setSoundMuted(!muted);
     s.sound.mute(muted);
     if (!muted) s.sound.unlock();
     updateUi(s);
@@ -248,6 +295,7 @@ function begin(reset=false) {
     s.ui=createExpeditionUI(document.body,{
       action:action=>act(s,action),
       control:(key,down)=>s.flight?.input(key,down),
+      stick:(x,y)=>s.flight?.stick(x,y),
       look:(dx,dy)=>s.flight?.drag(dx,dy)
     });
     const hooks = {onEvent:name=>flightEvent(s,name), onTelemetry:data=>{s.telemetry=data;}};
@@ -263,7 +311,6 @@ function begin(reset=false) {
       s.flight=createFallbackFlight(replacement,THREE,hooks);
     }
     hangar.hidden=true;
-    if (s.state.stage === "complete") preparePostcard(s.state.choice).catch(()=>{});
     persist(s);
     updateUi(s);
     s.frame=requestAnimationFrame(t=>tick(s,t));
@@ -289,6 +336,13 @@ free.addEventListener("click",()=>openSolar(false));
 async function openSolar(visit) {
   if (opening || session || otherFlightActive) return;
   opening=true;free.disabled=true;start.disabled=true;
+  radio ??= createSolarRadio({
+    telemetry:() => solar?.getSolarSoundState(),
+    signal:document.querySelector("#solarSignal"),
+    log:document.querySelector("#solarListening"),
+  });
+  // Resume the mobile audio context during the original tap, before loading WebGL.
+  radio.start(muted);
   try {
     solarView.hidden=false;
     solar ??= await import("./app.js");
@@ -299,13 +353,14 @@ async function openSolar(visit) {
     if (visit && unlocked) solar.visitObservatory();
     hangar.hidden=true;
   } catch(err) {
+    radio.stop();
     console.error("Solar flight",err);
     menu("Свободному полёту нужен WebGL 2. Экспедиция также поддерживает облегчённую графику.");
   } finally {
     opening=false;free.disabled=false;start.disabled=false;
   }
 }
-document.querySelector("#solarMenu").addEventListener("click",()=>{solar?.pauseSolarFlight();menu();free.focus();});
+document.querySelector("#solarMenu").addEventListener("click",()=>{radio?.stop();solar?.pauseSolarFlight();menu();free.focus();});
 window.addEventListener("keydown",event=>{
   const s=session;
   if (!s || event.ctrlKey || event.altKey || event.metaKey) return;
@@ -329,10 +384,20 @@ window.addEventListener("keyup",event=>{
   if (![...held].some(code=>bindings[code]===bindings[event.code])) session?.flight?.input(bindings[event.code],false);
 });
 window.addEventListener("blur",releaseKeys);
+function suspendSolar() {
+  if (solar && !solarView.hidden) { radio?.stop(); solar.pauseSolarFlight(); }
+}
+function resumeSolar() {
+  if (solar && !solarView.hidden && !document.hidden) { solar.resumeSolarFlight(); radio?.start(muted); }
+}
+window.addEventListener("pagehide", suspendSolar);
+document.addEventListener("freeze", suspendSolar);
+window.addEventListener("pageshow", resumeSolar);
+document.addEventListener("resume", resumeSolar);
 document.addEventListener("visibilitychange",()=>{
   const s=session;
   if (!s) {
-    if (solar && !solarView.hidden) document.hidden ? solar.pauseSolarFlight() : solar.resumeSolarFlight();
+    if (document.hidden) suspendSolar(); else resumeSolar();
     return;
   }
   releaseKeys();cancelAnimationFrame(s.frame);

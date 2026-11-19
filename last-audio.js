@@ -1,3 +1,5 @@
+import { createHullScore } from "./hull-score.js";
+
 // Oscillator phrases keep the receiver usable offline and on small speakers.
 // Each station's pulse count matches its recorder key, even in mono.
 const CALLS = {
@@ -5,13 +7,11 @@ const CALLS = {
   "note-b": { hz: 440, starts: [0, 0.22], duration: 0.14, wave: "sine" },
   "note-c": { hz: 587.330, starts: [0, 0.17, 0.34], duration: 0.12, wave: "sine" },
 };
-const FLIGHT_LINE = [146.832, 220, 293.665, 261.626, 146.832, 196, 293.665, 329.628];
-const RETURN_LINE = [293.665, 0, 440, 329.628, 0, 293.665, 220, 0];
 
 export function createLastAudio() {
-  let context, master, bed, suspendTimer;
+  let context, master, bed, suspendTimer, score;
   let paused = true, muted = false, disposed = false;
-  let phase, choice = "relay", step = 0, nextBeat = 0, nextMix = 0;
+  let phase, choice = "relay", nextMix = 0;
   const lines = [];
   const voices = new Set();
 
@@ -27,6 +27,7 @@ export function createLastAudio() {
     if (!Audio) return false;
     context = new Audio();
     master = gain(context.destination, 0);
+    score = createHullScore(context, master);
     bed = gain(master, 0.83);
     const pitches = [73.416, 146.832, 220];
     for (const hz of pitches) {
@@ -73,6 +74,7 @@ export function createLastAudio() {
   function hush() {
     clearTimeout(suspendTimer);
     phase = undefined;
+    score?.reset();
     if (!context || disposed) return;
     const now = context.currentTime;
     master.gain.setTargetAtTime(0, now, 0.012);
@@ -130,12 +132,14 @@ export function createLastAudio() {
     if (name === "found") {
       [220, 293.665, 369.994, 440].forEach((hz, i) => tone(hz, 0.72, 0.082, i * 0.09));
     } else if (name === "pass") {
+      score.pass(0.82);
       tone(329.628, 0.22, 0.09);
       tone(493.883, 0.51, 0.098, 0.10);
     } else if (name === "miss") {
       tone(174.614, 0.30, 0.075, 0, "triangle");
       tone(146.832, 0.48, 0.057, 0.15);
     } else if (name === "home") {
+      score.pass(0.62);
       [146.832, 220, 293.665, choice === "people" ? 349.228 : 440].forEach((hz, i) =>
         tone(hz, 1.55, 0.069, i * 0.14, i === 3 ? "triangle" : "sine"));
     }
@@ -145,6 +149,8 @@ export function createLastAudio() {
     const flying = state.phase === "fly";
     const home = state.phase === "home";
     const progress = Math.min(1, Math.max(0, Number(telemetry?.progress) || 0));
+    const scene = flying ? "passage" : home ? (state.choice === "people" ? "windows" : "antenna") : "receiver";
+    score.update(scene, flying ? 0.12 + 0.83 * progress : home ? 0.07 : 0);
     const params = [
       [73.416, flying ? 0.068 : 0.040],
       [home ? 220 : 146.832, flying ? 0.040 : 0.022],
@@ -162,36 +168,12 @@ export function createLastAudio() {
     choice = state.choice;
     if (phase !== state.phase) {
       phase = state.phase;
-      step = 0;
       nextMix = now;
-      nextBeat = now + (phase === "home" ? 1.15 : 0.23);
     }
     if (now >= nextMix) {
       mix(state, telemetry, now);
       nextMix = now + 0.11;
     }
-    if (phase === "tune" || now < nextBeat) return;
-    const flying = phase === "fly";
-    const notes = flying ? FLIGHT_LINE : RETURN_LINE;
-    const hz = notes[step % notes.length];
-    if (flying) {
-      tone(hz, 0.45, 0.058, 0, "triangle");
-      if (step % 4 === 2 && state.leg > 0) tone(hz * 1.5, 0.31, 0.029, 0.13);
-    } else {
-      tone(hz, 0.90, 0.063);
-      if (step % 8 === 4) {
-        if (choice === "people") {
-          tone(349.228, 0.27, 0.077, 0.03, "triangle");
-          tone(329.628, 0.62, 0.055, 0.29);
-        } else {
-          tone(440, 0.92, 0.052, 0.05);
-          tone(659.255, 0.65, 0.02, 0.20);
-        }
-      }
-    }
-    step++;
-    // Restart from the current beat after a stalled frame, without playing a backlog.
-    nextBeat = now + (flying ? 0.58 - 0.045 * Math.min(3, state.leg || 0) : 0.76);
   }
 
   function dispose() {
@@ -199,6 +181,7 @@ export function createLastAudio() {
     disposed = true;
     clearTimeout(suspendTimer);
     if (!context) return;
+    score.dispose();
     const end = context.currentTime + 0.035;
     master.gain.setTargetAtTime(0, context.currentTime, 0.006);
     for (const voice of voices) if (!voice.stopped) fadeVoice(voice);

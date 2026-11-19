@@ -1,3 +1,5 @@
+import { createHullScore } from "./hull-score.js";
+
 // Both transmitters keep sending while the station is between the ship and a mast.
 // Their gains follow the receiver continuously, including halfway through a note.
 const A_NOTES = [
@@ -12,7 +14,7 @@ const SHUTTLE_NOTES = [
 const clampLevel = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
 export function createEchoAudio() {
-  let context, master, left, right, cabin;
+  let context, master, left, right, cabin, score;
   let muted = false;
   let paused = true;
   let disposed = false;
@@ -48,6 +50,7 @@ export function createEchoAudio() {
         if (!Audio) return;
         context = new Audio();
         master = gain(context.destination, 0);
+        score = createHullScore(context, master);
         left = receiver(-0.36);
         right = receiver(0.36);
         cabin = gain(master, 0.75);
@@ -61,6 +64,7 @@ export function createEchoAudio() {
 
   function silence() {
     previous = null;
+    score?.reset();
     clearTimeout(suspendTimer);
     if (!master || disposed) return;
     master.gain.setTargetAtTime(0, context.currentTime, 0.014);
@@ -128,6 +132,12 @@ export function createEchoAudio() {
     if (mixCooldown <= 0 || stageChanged) {
       mixCooldown = 0.055;
       const now = context.currentTime;
+      const listening = state.phase === 'listen';
+      const inShadow = telemetry.occludedA || telemetry.occludedB;
+      const approaching = 1 - clampLevel((telemetry.targetDistance ?? 85) / 85);
+      const scene = listening ? 'signal' : state.phase === 'gate' ? 'passage' : state.choice === 'people' ? 'windows' : 'antenna';
+      // Behind the hull the softer air leaves one isolated transmitter exposed.
+      score.update(scene, listening ? (inShadow ? 0.04 : 0.39) : approaching * 0.65);
       left.gain.setTargetAtTime(clampLevel(telemetry.a) ** 1.35, now, 0.08);
       right.gain.setTargetAtTime(clampLevel(telemetry.b) ** 1.35, now, 0.08);
     }
@@ -166,6 +176,7 @@ export function createEchoAudio() {
       tone(cabin, low ? 329.63 : 293.66, 0.52, 0.085, 'sine', 0.17);
     } else if (name === 'gate' || name === 'arrived') {
       const arrival = name === 'arrived';
+      if (arrival) score.pass(0.64);
       const chord = arrival ? [146.83, 220, 293.66, 392] : [220, 293.66, 329.63];
       chord.forEach((hz, index) => tone(cabin, hz, arrival ? 1.5 : 0.76, 0.064, 'sine', index * 0.15));
     }
@@ -175,6 +186,7 @@ export function createEchoAudio() {
     if (disposed) return;
     disposed = true;
     clearTimeout(suspendTimer);
+    score?.dispose();
     for (const oscillator of voices) {
       try { oscillator.stop(); } catch {}
     }

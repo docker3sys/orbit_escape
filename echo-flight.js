@@ -5,6 +5,7 @@ const HULL = 21, CLEARANCE = 24;
 const ORIGIN = { x: 0, y: 0 };
 const BEACONS = { a: { x: -116, y: -34 }, b: { x: 116, y: -34 } };
 const GATE = { x: -3, y: -65 };
+const LISTENING_ZONES = {a:{x:-58,y:17}, b:{x:58,y:17}};
 const MINT = "#90e0d5", AMBER = "#ffc08a", DUST = "#9cb4c0";
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const length = (p, q = ORIGIN) => Math.hypot(q.x - p.x, q.y - p.y);
@@ -96,7 +97,8 @@ function paintSky(ctx, width, height) {
     }
   }
   ctx.globalAlpha = 1;
-  // The distant limb is a landmark outside the navigation plane.
+  // This unlit moon is outside the navigation plane; only its upper atmosphere catches the star.
+
   const r = Math.min(width, height) * .34;
   const cx = width - r * .18, cy = -r * .44;
   const haze = ctx.createRadialGradient(cx, cy, r * .89, cx, cy, r * 1.18);
@@ -108,6 +110,26 @@ function paintSky(ctx, width, height) {
   const globe = ctx.createRadialGradient(cx + r * .23, cy - r * .28, r * .32, cx, cy, r);
   globe.addColorStop(0, "#060e17"); globe.addColorStop(.82, "#0d1922"); globe.addColorStop(.97, "#182e35"); globe.addColorStop(1, "#618183");
   ctx.fillStyle = globe; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.clip(); ctx.translate(cx,cy); ctx.rotate(-.3);
+  for (let belt=0; belt<15; belt++) {
+    const latitude=(.15+belt*.055)*r;
+    ctx.strokeStyle=belt%3===1 ? "rgba(115,185,182,.13)" : "rgba(30,64,83,.28)";
+    ctx.lineWidth=r*(.005+rnd()*.009);
+    ctx.beginPath();ctx.ellipse(0,latitude,r*1.22,r*.12,.05,0,Math.PI);ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.translate(cx,cy); ctx.rotate(-.38);
+  const ring=ctx.createLinearGradient(-1.9*r,0,1.7*r,0);
+  ring.addColorStop(0,"rgba(97,182,176,.04)"); ring.addColorStop(.23,"rgba(155,201,191,.35)");
+  ring.addColorStop(.53,"rgba(79,117,130,.15)"); ring.addColorStop(1,"rgba(223,196,143,.38)");
+  ctx.strokeStyle=ring;
+  for(const factor of [1.41,1.46,1.48,1.56,1.59]){
+    ctx.lineWidth=factor===1.48?r*.013:Math.max(.65,r*.003);
+    ctx.beginPath();ctx.ellipse(0,0,r*factor,r*factor*.26,0,0,Math.PI);ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function line(ctx, a, b, color, width = 1) {
@@ -133,10 +155,10 @@ function shadowCone(ctx, point, id) {
   function ray(r, theta) { return { x: point.x + r * Math.cos(theta), y: point.y + r * Math.sin(theta) }; }
   const a = ray(touch, left), b = ray(touch, right), c = ray(410, right), e = ray(410, left);
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x,c.y); ctx.lineTo(e.x,e.y); ctx.closePath();
-  ctx.fillStyle = id === "a" ? "rgba(105,194,198,.082)" : "rgba(221,156,104,.094)";
+  ctx.fillStyle = id === "a" ? "rgba(230,159,88,.12)" : "rgba(97,215,198,.105)";
   ctx.fill();
   ctx.setLineDash([1.7, 2.9]);
-  const color = id === "a" ? "rgba(130,218,214,.39)" : "rgba(251,184,133,.39)";
+  const color = id === "a" ? "rgba(251,184,133,.48)" : "rgba(130,218,214,.48)";
   line(ctx,a,e,color,.48); line(ctx,b,c,color,.48); ctx.setLineDash([]);
 }
 
@@ -210,7 +232,8 @@ export function createEchoFlight(canvas, hooks = {}) {
   const pressed=new Set();
   let w=0,h=0,scale=1,portrait=false,ratio=1;
   let ship={x:0,y:70}, heading=-Math.PI/2, route=[], clock=0, arrivalTime=0;
-  let previousPhase=null, pending=null, latest=null, disposed=false;
+  let previousPhase=null, pending=null, latest=null, disposed=false, piloted=false;
+  let stickX=0,stickY=0,lastIsolated=null,holdLock=0;
   let state={phase:"listen",samples:{a:false,b:false},choice:"people"}, readings=null;
   const trail=[];
   let trailClock=0;
@@ -253,14 +276,17 @@ export function createEchoFlight(canvas, hooks = {}) {
     pending=name;
     hooks.onEvent?.(name);
   }
-  function read() {
+  function read(dt) {
     const a=sensor("a"), b=sensor("b");
     const captured=state.samples || {};
     const clean = a.power>.48&&b.power<.19&&!captured.a?"a":b.power>.48&&a.power<.19&&!captured.b?"b":null;
-    const canCapture=state.phase==="listen"?clean:null;
+    // A brief lock memory lets the pilot release the stick and use the receiver with one hand.
+    if(clean) {lastIsolated=clean;holdLock=.55;}
+    else holdLock=Math.max(0,holdLock-dt);
+    const canCapture=state.phase==="listen"&&holdLock>0&&!captured[lastIsolated]?lastIsolated:null;
     const distance=length(ship,GATE);
     return {a:a.power,b:b.power,occludedA:a.blocked,occludedB:b.blocked,
-      canCapture,nearGate:distance<7,targetDistance:distance,signalPhase:(clock%3.6)/3.6};
+      canCapture,nearGate:distance<11,onGateCourse:route[route.length-1]===GATE,targetDistance:distance,signalPhase:(clock%3.6)/3.6};
   }
 
   function moveTo(nx,ny) {
@@ -268,6 +294,14 @@ export function createEchoFlight(canvas, hooks = {}) {
     const end=world(clamp(nx,0,1),clamp(ny,0,1));
     const destination=outside({x:clamp(end.x,-151,151),y:clamp(end.y,-95,95)});
     route=plotCourse(ship,destination);
+  }
+  function steer(x,y) {
+    stickX=clamp(Number.isFinite(x)?x:0,-1,1);
+    stickY=clamp(Number.isFinite(y)?y:0,-1,1);
+    if (stickX||stickY) route=[];
+  }
+  function courseToGate() {
+    if (!disposed&&state.phase==="gate") route=plotCourse(ship,GATE);
   }
   function key(name,down) {
     if(!["left","right","up","down"].includes(name)) return;
@@ -282,10 +316,12 @@ export function createEchoFlight(canvas, hooks = {}) {
   function advance(dt) {
     if(state.phase==="arrived") return false;
     let dx=Number(pressed.has("right"))-Number(pressed.has("left")),dy=Number(pressed.has("down"))-Number(pressed.has("up"));
+    if(!dx&&!dy) {dx=stickX;dy=stickY;}
     if(dx||dy) {
       if(portrait) [dx,dy]=[dy,-dx];
-      const d=Math.hypot(dx,dy);dx/=d;dy/=d;
-      const next=outside({x:ship.x+dx*48*dt,y:ship.y+dy*48*dt});
+      const magnitude=Math.max(1,Math.hypot(dx,dy));
+      dx/=magnitude;dy/=magnitude;
+      const next=outside({x:ship.x+dx*62*dt,y:ship.y+dy*62*dt});
       ship={x:clamp(next.x,-151,151),y:clamp(next.y,-95,95)};heading=Math.atan2(dy,dx);
       return true;
     }
@@ -305,6 +341,37 @@ export function createEchoFlight(canvas, hooks = {}) {
   function mapFrame() {
     ctx.translate(w/2,h/2);if(portrait)ctx.rotate(Math.PI/2);ctx.scale(scale,scale);
   }
+  function listeningZone(id) {
+    const p=LISTENING_ZONES[id], tint=id==="a"?"144,232,213":"255,191,131";
+    const locked=readings.canCapture===id;
+    const pulse=state.reducedMotion?.5:.5+.5*Math.cos(clock*2.4);
+    ctx.save();ctx.translate(p.x,p.y);if(portrait)ctx.rotate(-Math.PI/2);
+    glow(ctx,0,0,15,`rgba(${tint},${locked?.15:.09})`);
+    ctx.lineWidth=.8;ctx.strokeStyle=`rgba(${tint},${.52+.21*pulse})`;
+    ctx.beginPath();
+    for(let j=0;j<4;j++) {
+      const angle=j*Math.PI/2;
+      ctx.arc(0,0,7.2,angle+.21,angle+1.1);
+      ctx.moveTo(7.2*Math.cos(angle+Math.PI/2+.21),7.2*Math.sin(angle+Math.PI/2+.21));
+    }
+    ctx.stroke();ctx.fillStyle=`rgba(${tint},.88)`;
+    ctx.font="600 5.3px monospace";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(id.toUpperCase(),0,0);ctx.restore();
+  }
+  function radioFront(id,blocked) {
+    const source=BEACONS[id],dx=ship.x-source.x,dy=ship.y-source.y;
+    const distance=Math.hypot(dx,dy); if(distance<7)return;
+    const available=blocked?Math.min(distance,Math.max(0,length(source)-HULL)):distance;
+    const cycle=state.reducedMotion?.45:clock*(id==="a"?30:36);
+    const hue=id==="a"?"144,232,213":"255,191,131";
+    for(let d=8+cycle%35;d<available-3;d+=35) {
+      const t=d/distance,angle=Math.atan2(dy,dx),w=2.1;
+      const x=source.x+dx*t,y=source.y+dy*t;
+      if(blocked && (Math.hypot(x,y)<HULL || segmentClearance(source,{x,y})<HULL)) break;
+      ctx.strokeStyle=`rgba(${hue},${blocked?.35:.70})`;ctx.lineWidth=.68;
+      ctx.beginPath();ctx.arc(x,y,w,angle-.90,angle+.90);ctx.stroke();
+    }
+  }
   function mapBase() {
     ctx.save();mapFrame();
     ctx.strokeStyle="rgba(116,164,178,.13)";ctx.lineWidth=.42;
@@ -314,11 +381,13 @@ export function createEchoFlight(canvas, hooks = {}) {
     const people=state.choice==="people";
     if(state.phase==="listen") {shadowCone(ctx,BEACONS.a,"a");shadowCone(ctx,BEACONS.b,"b");}
     for(const id of ["a","b"]) {
+      if(state.phase==="listen"&&!state.samples?.[id]) listeningZone(id);
       const source=BEACONS[id], blocked=id==="a"?readings.occludedA:readings.occludedB;
       if(state.phase!=="arrived") {
         ctx.setLineDash(blocked?[1.5,3.4]:[.9,1.9]);
         line(ctx,ship,source,blocked?"rgba(134,151,166,.25)":id==="a"?"rgba(143,230,216,.52)":"rgba(255,192,138,.55)",.56);
         ctx.setLineDash([]);
+        if(state.phase==="listen")radioFront(id,blocked);
       }
       const sample=state.samples?.[id];
       if(sample) circle(ctx,source.x,source.y,11.2,null,id==="a"?MINT:AMBER,.65);
@@ -341,7 +410,15 @@ export function createEchoFlight(canvas, hooks = {}) {
     if(state.phase==="listen")return;
     const pulse=state.reducedMotion?.3:.5+.5*Math.sin(clock*2.2);
     ctx.save();mapFrame();ctx.translate(GATE.x,GATE.y);
-    glow(ctx,0,0,21+pulse*2,"rgba(193,233,208,.21)");
+    glow(ctx,0,0,28+pulse*2,"rgba(144,235,207,.29)");
+    circle(ctx,0,0,6.2,"#07161d");
+    ctx.save();ctx.rotate(-.36);ctx.scale(.77,1);
+    for(let i=0;i<3;i++){
+      const angle=(state.reducedMotion?0:clock*.41)+i*TAU/3;
+      ctx.strokeStyle=i===0?"#d3ffe5":i===1?"#76c6bf":"#c8ad84";ctx.lineWidth=1.2-i*.17;
+      ctx.beginPath();ctx.arc(0,0,9+i*1.45,angle,angle+1.9);ctx.stroke();
+    }
+    ctx.restore();
     ctx.strokeStyle="#d5f3d9";ctx.lineWidth=.95;ctx.beginPath();ctx.ellipse(0,0,8,10,-.36,0,TAU);ctx.stroke();
     ctx.strokeStyle="#75a4a5";ctx.lineWidth=.58;ctx.beginPath();ctx.ellipse(0,0,10.6,12.5,-.36,.41,4.9);ctx.stroke();
     ctx.beginPath();ctx.ellipse(0,0,6.1,8,-.36,0,TAU);ctx.fillStyle="rgba(150,225,192,.13)";ctx.fill();
@@ -358,9 +435,18 @@ export function createEchoFlight(canvas, hooks = {}) {
       line(ctx,trail[i-1],trail[i],`rgba(141,215,207,${i/trail.length*.4})`,.69);
     }
     glow(ctx,ship.x,ship.y,8,"rgba(133,232,211,.24)");
-    littleShip(ctx,ship,heading,"#e9fff1",1.04,moving);
+    const markerSize=clamp(1.65/scale,1.05,1.80);
+    littleShip(ctx,ship,heading,"#e9fff1",markerSize,moving);
+    if(!piloted&&state.phase==="listen"){
+      for (let i=0; i<4; i++) {
+        const a=i*Math.PI/2+.25;
+        ctx.strokeStyle="rgba(214,246,230,.69)";ctx.lineWidth=.55;
+        ctx.beginPath();ctx.arc(ship.x,ship.y,8.6*markerSize,a,a+.72);ctx.stroke();
+      }
+    }
     if(readings.canCapture) circle(ctx,ship.x,ship.y,7.4,null,"#f0e4be",.65);
     ctx.restore();
+    if(!piloted&&state.phase==="listen") screenText("ВАШ КОРАБЛЬ",ship,Math.max(14,scale*12),"#d5f3e4");
   }
   function drawShuttle() {
     const elapsed=Math.max(0,clock-arrivalTime);
@@ -390,11 +476,12 @@ export function createEchoFlight(canvas, hooks = {}) {
     if(latest!==token) {latest=token;pending=null;}
     previousPhase=state.phase;
     const moving=advance(dt);
+    if (moving) piloted=true;
     trailClock+=dt;
     if(trailClock>.12) {
       trailClock=0;trail.push({...ship});if(trail.length>14) trail.shift();
     }
-    readings=read();
+    readings=read(dt);
     hooks.onTelemetry?.(readings);
     if(state.phase==="gate"&&readings.nearGate) tell("arrived");
     ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(bg,0,0);
@@ -414,5 +501,5 @@ export function createEchoFlight(canvas, hooks = {}) {
     route = []; pressed.clear(); trail.length = 0;
     return true;
   }
-  return { render, moveTo, key, interact, snapshot, restore, dispose() {disposed=true;pressed.clear();route=[];bg.width=bg.height=1;} };
+  return { render, moveTo, steer, courseToGate, key, interact, snapshot, restore, dispose() {disposed=true;pressed.clear();route=[];bg.width=bg.height=1;} };
 }

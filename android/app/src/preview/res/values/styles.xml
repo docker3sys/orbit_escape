@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="orbit_night">#070D15</color>
+
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@color/orbit_night</item>
+        <item name="windowSplashScreenBackground">@color/orbit_night</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/orbit_night</item>
+        <item name="android:statusBarColor">@color/orbit_night</item>
+        <item name="android:navigationBarColor">@color/orbit_night</item>
+    </style>
+</resources>

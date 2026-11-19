@@ -351,121 +351,264 @@ button {
   transform: translate(-50%, -50%);
 }
 
-.mobile-pad {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
-  z-index: 4;
+.solar-touch-only,
+.solar-arrival:not(.is-arriving),
+#game [hidden] {
   display: none;
-  grid-template-columns: repeat(3, 48px);
-  grid-template-rows: repeat(3, 48px);
-  gap: 6px;
+}
+
+.solar-route-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#game .solar-help {
+  position: static;
+  max-width: none;
+  margin-top: 8px;
+}
+#game .solar-help p { font-size: 12px; }
+#game .solar-menu { bottom: auto; top: max(16px, env(safe-area-inset-top)); }
+
+.solar-arrival {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 28%;
+  width: min(82vw, 410px);
+  text-align: center;
   transform: translateX(-50%);
+  pointer-events: none;
+  color: #e7f7f1;
+  font: 550 clamp(16px, 3vw, 25px)/1.25 system-ui,sans-serif;
+  text-shadow: 0 1px 8px #071519, 0 0 16px #051414;
 }
 
-.mobile-pad button {
-  width: 48px;
-  height: 48px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 6px;
-  background: rgba(8, 10, 15, 0.68);
-  color: white;
-  font-size: 18px;
-  font-weight: 900;
+.solar-arrival::after {
+  content: '';
+  display: block;
+  width: 31px;
+  height: 1px;
+  margin: 9px auto 0;
+  background: #adedd9;
 }
 
-.mobile-pad [data-touch="forward"] {
-  grid-column: 2;
-  grid-row: 1;
+.solar-arrival.is-arriving { animation: solar-arrive 2.15s both; }
+@keyframes solar-arrive {
+  from { opacity: 0; translate: 0 4px; }
+  18%, 65% { opacity: 1; translate: 0 0; }
+  to { opacity: 0; }
 }
 
-.mobile-pad [data-touch="left"] {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.mobile-pad [data-touch="right"] {
-  grid-column: 3;
-  grid-row: 2;
-}
-
-.mobile-pad [data-touch="backward"] {
-  grid-column: 2;
-  grid-row: 3;
-}
-
-@media (max-width: 760px) {
-  .hud--right {
-    right: 12px;
-    left: 12px;
-    width: auto;
+@media (pointer: coarse), (max-width: 760px) {
+  #game {
+    --solar-edge-left: max(14px, env(safe-area-inset-left));
+    --solar-edge-right: max(14px, env(safe-area-inset-right));
+    --solar-edge-top: max(10px, env(safe-area-inset-top));
+    --solar-deck-bottom: max(20px, calc(env(safe-area-inset-bottom) + 10px));
+    --solar-stick-size: clamp(104px, 15vmin, 124px);
+    -webkit-user-select: none;
+    user-select: none;
   }
 
-  .hud--left {
-    right: 12px;
-    bottom: 188px;
-    left: 12px;
-    width: auto;
-  }
+  #space { touch-action: none; }
+  .solar-touch-only { display: block; }
 
-  .target-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  #game .solar-menu, #solarRoute {
+    top: var(--solar-edge-top);
+    min-height: 46px;
+    padding: 0 14px;
+    border: 1px solid #b1cccd51;
+    border-radius: 24px;
+    color: #e6f4f1;
+    background: #0a171fe0;
+    font-size: 14px;
+    font-weight: 620;
+    line-height: 1;
+    touch-action: manipulation;
   }
+  #game .solar-menu { left: var(--solar-edge-left); }
+  #solarRoute { position: relative; top: 0; align-self: flex-end; }
+  #solarRoute span { display: inline-block; margin-left: 4px; }
+  #solarRoute[aria-expanded="true"] span { transform: rotate(180deg); }
 
-  .target-list button {
-    padding: 0 4px;
-    font-size: 10px;
-  }
-
-  .mobile-pad {
+  #game .hud { border: 0; background: none; border-radius: 0; box-shadow: none; backdrop-filter: none; }
+  #game .hud--left {
+    top: calc(var(--solar-edge-top) + 58px);
+    left: var(--solar-edge-left);
+    right: auto;
+    bottom: auto;
     display: grid;
-  }
-
-  .launch:not(.is-hidden) ~ .hud--left,
-  .launch:not(.is-hidden) ~ .hud--right,
-  .launch:not(.is-hidden) ~ .mobile-pad {
-    opacity: 0;
+    grid-template-columns: auto auto;
+    column-gap: 9px;
+    row-gap: 3px;
+    width: max-content;
+    max-width: calc(100vw - 30px);
+    padding: 0;
+    text-shadow: 0 1px 5px #000, 0 0 12px #000;
     pointer-events: none;
   }
-
-  .launch {
-    top: 52%;
-    padding: 20px;
+  .hud--left .readout { display: contents; }
+  .hud--left .readout span { display: none; }
+  .hud--left .readout strong { font-size: 12px; font-weight: 500; color: #c9dbdb; }
+  #game #targetReadout { grid-row: 1; grid-column: 1 / -1; font-size: 16px; font-weight: 650; color: #f0f7f4; }
+  #game #distanceReadout { grid-row: 2; grid-column: 1; }
+  #game #speedReadout { grid-row: 2; grid-column: 2; padding-left: 9px; border-left: 1px solid #afcec166; }
+  #game .hud--right {
+    z-index: 6;
+    overflow: visible;
+    left: auto;
+    right: var(--solar-edge-right);
+    top: var(--solar-edge-top);
+    padding: 0;
+    width: max-content;
+    max-width: min(320px, calc(100vw - 28px));
+    max-height: calc(100% - var(--solar-edge-top) - max(10px, env(safe-area-inset-bottom)));
   }
-
-  .launch-controls {
-    grid-template-columns: 1fr;
+  #solarRoutePanel {
+    position: relative;
+    width: min(320px, calc(100vw - 28px));
+    margin-top: 6px;
+    padding: 12px;
+    border: 1px solid #91b0b65e;
+    border-radius: 16px;
+    background: #0a161ff5;
+    box-shadow: 0 14px 40px #0009;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
+  #solarRoutePanel .hud__title { display: none; }
+  #solarRoutePanel .target-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; flex: 1 1 auto; }
+  #solarRoutePanel .target-list button,
+  #solarRoutePanel .chip { min-height: 46px; padding: 4px 5px; font-size: 12px; touch-action: manipulation; }
+  #solarRoutePanel .switch-row, #solarRoutePanel .solar-help { flex: 0 0 auto; }
+  #solarRoutePanel .solar-help { margin-top: 7px; }
+  #solarRoutePanel .solar-help summary { min-height: 44px; }
+  #solarRoutePanel .solar-help p:last-child, #jumpButton { display: none; }
+
+  .solar-flight-deck {
+    position: absolute;
+    z-index: 4;
+    bottom: var(--solar-deck-bottom);
+    left: var(--solar-edge-left);
+    right: var(--solar-edge-right);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 3px;
+    pointer-events: none;
+  }
+  html[data-hand="left"] .solar-flight-deck { flex-direction: row-reverse; }
+  .solar-stick, .solar-warp {
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .solar-stick {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--solar-stick-size);
+    height: var(--solar-stick-size);
+    border-radius: 50%;
+    border: 1px solid #a2c2be69;
+    background: radial-gradient(circle, #0a212877 38%, #12272e80 63%, #25414c55);
+  }
+  .solar-stick::before {
+    content: '';
+    position: absolute;
+    inset: 10%;
+    border: 1px dashed #c1ddd32c;
+    border-radius: 50%;
+  }
+  .solar-stick::after {
+    content: '';
+    position: absolute;
+    top: 8%;
+    width: 7px;
+    height: 7px;
+    border: solid #c6e2d9aa;
+    border-width: 1.5px 1.5px 0 0;
+    transform: rotate(-45deg);
+  }
+  .solar-stick-knob {
+    z-index: 1;
+    width: 42%;
+    height: 42%;
+    border-radius: 50%;
+    border: 1px solid #c9dfd890;
+    background: radial-gradient(circle at 43% 36%,#55717de3,#243c47eb 80%);
+    transform: translate(var(--sx, 0), var(--sy, 0));
+  }
+  .solar-stick:not(.is-engaged) .solar-stick-knob { transition: transform 140ms ease-out; }
+  .solar-stick.is-engaged { border-color: #c7ece2bf; }
+  .solar-warp {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 1px;
+    width: 83px;
+    height: 73px;
+    border: 1px solid #d0d8af92;
+    border-radius: 28px;
+    background: linear-gradient(145deg, #344039dd, #152227de);
+    color: #f4f1d1;
+    font-size: 12px;
+    font-weight: 640;
+  }
+  .solar-warp svg { width: 31px; height: 25px; }
+  .solar-warp:active { background: #505946e6; transform: translateY(1px); }
+  .solar-touch-hint {
+    position: absolute;
+    z-index: 3;
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--solar-deck-bottom) + var(--solar-stick-size) + 8px);
+    margin: 0;
+    text-align: center;
+    color: #def0e9;
+    font-size: 13px;
+    text-shadow: 0 1px 6px #000, 0 0 11px #000;
+    pointer-events: none;
+  }
+  #game:has(#solarRoute[aria-expanded="true"]) .solar-touch-hint { visibility: hidden; }
 }
 
-@media (max-width: 440px) {
-  .target-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (max-height: 490px) and (orientation: landscape) {
+  #game {
+    --solar-stick-size: 96px;
+    --solar-deck-bottom: max(10px, env(safe-area-inset-bottom));
   }
+  #game .hud--left { top: calc(var(--solar-edge-top) + 48px); }
+  #game .solar-touch-hint { bottom: var(--solar-deck-bottom); }
+  #solarRoutePanel .target-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 
-  .hud--right {
-    padding: 10px;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .solar-arrival.is-arriving { animation: none; }
+  .solar-stick .solar-stick-knob { transition: none; }
+}
 
-  .readout {
-    grid-template-columns: 82px minmax(0, 1fr);
-  }
-
-  .launch h1 {
-    font-size: 42px;
-  }
-
-  .launch p {
-    font-size: 15px;
-  }
-
-  .launch-controls {
-    gap: 6px;
-    margin-bottom: 18px;
-  }
-
-  .launch-controls div {
-    min-height: 30px;
-    padding: 5px 7px;
-  }
+.solar-listening { margin: 0 0 10px; color: #bfdbcb; font-size: 13px; line-height: 1.35; }
+.solar-listening:empty { display: none; }
+.solar-signal {
+  position: absolute;
+  z-index: 3;
+  top: 64%;
+  left: 50%;
+  width: max-content;
+  max-width: min(520px, calc(100% - 38px));
+  transform: translateX(-50%);
+  padding: 5px 11px;
+  border-left: 2px solid #a1cfbc;
+  color: #e1f4e9;
+  background: #081317db;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  pointer-events: none;
+}
+@media (max-height: 490px) and (orientation: landscape) {
+  .solar-signal { max-width: calc(100% - 236px); }
 }

@@ -1,5 +1,6 @@
 import * as THREE from "./vendor/three.module.js";
 import { createSolarObservatory } from "./solar-observatory.js";
+import { createSolarTouch } from "./solar-touch.js";
 
 const canvas = document.querySelector("#space");
 const launchPanel = document.querySelector("#launchPanel");
@@ -40,7 +41,19 @@ let solarFrame = 0;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2(0, 0);
 const keys = new Set();
-const touchState = new Set();
+const compactSolar = matchMedia("(pointer: coarse), (max-width: 760px)");
+const routeButton = document.querySelector("#solarRoute");
+const routePanel = document.querySelector("#solarRoutePanel");
+const touchJump = document.querySelector("#solarJump");
+const touchHint = document.querySelector("#solarTouchHint");
+const arrival = document.querySelector("#solarArrival");
+const touchVelocity = new THREE.Vector3();
+let solarTouch;
+let routeOpen = false;
+let jumpCount = 0;
+let arrivalTimer;
+let hintTimer;
+let showTouchHint = true;
 
 const world = new THREE.Group();
 scene.add(world);
@@ -57,8 +70,6 @@ let orbitsVisible = false;
 let yaw = 0;
 let pitch = 0;
 let roll = 0;
-let draggingLook = false;
-let lastTouch = null;
 let velocity = new THREE.Vector3();
 let targetPulse = 0;
 let renderProbeDone = false;
@@ -119,6 +130,7 @@ const planetSpecs = [
   },
   {
     key: "venus",
+    airglow: 0xffd08b,
     name: "Венера",
     trueRadiusKm: 6051.8,
     positionAU: [-0.531076427796, 0.482428747067, 0.037270691319],
@@ -130,6 +142,7 @@ const planetSpecs = [
   },
   {
     key: "earth",
+    airglow: 0x88d9ff,
     name: "Земля",
     trueRadiusKm: 6371,
     positionAU: [-0.540789263351, -0.854915766526, 0.000052018045],
@@ -166,6 +179,7 @@ const planetSpecs = [
   },
   {
     key: "saturn",
+    airglow: 0xffdfa5,
     name: "Сатурн",
     trueRadiusKm: 58232,
     positionAU: [9.412333564228, 1.023890906836, -0.392498617414],
@@ -563,39 +577,22 @@ function initSpacecraft() {
 }
 
 let returnObservatory;
-let foldNavigation;
-let navigationFolded = false;
-const compactSolar = matchMedia("(max-width: 720px)");
-
-function syncNavigationFold() {
-  if (!foldNavigation) return;
-  const compact = compactSolar.matches;
-  const folded = compact && navigationFolded;
-  foldNavigation.hidden = !compact;
-  document.querySelector(".hud--right .hud__title").hidden = compact;
-  targetList.style.display = folded ? "none" : "";
-  foldNavigation.textContent = folded ? "Показать цели ▾" : "Свернуть цели ▴";
-  foldNavigation.setAttribute("aria-expanded", String(!folded));
+function setRouteOpen(open) {
+  routeOpen = open && compactSolar.matches;
+  routePanel.hidden = compactSolar.matches && !routeOpen;
+  routeButton.setAttribute("aria-expanded", String(routeOpen));
+  if (!open) routePanel.querySelector("details").open = false;
 }
 
-function enableNavigationFold() {
-  foldNavigation = document.createElement("button");
-  foldNavigation.type = "button";
-  foldNavigation.className = "chip";
-  foldNavigation.setAttribute("aria-controls", targetList.id);
-  targetList.before(foldNavigation);
-  foldNavigation.addEventListener("click", () => {
-    navigationFolded = !navigationFolded;
-    syncNavigationFold();
-  });
-  window.addEventListener("resize", syncNavigationFold);
-  syncNavigationFold();
+function hideTouchHint() {
+  showTouchHint = false;
+  clearTimeout(hintTimer);
+  touchHint.hidden = true;
 }
 
 export function setObservatoryUnlocked(choice) {
   if (choice !== "people" && choice !== "relay") return;
   if (!returnObservatory) {
-    enableNavigationFold();
     returnObservatory = createSolarObservatory(THREE);
     const span = 920;
     scaleModelToRealSpan(returnObservatory.model, span);
@@ -946,6 +943,48 @@ function createPlanet(spec) {
   nightRim.scale.setScalar(spec.radius * 4.3);
   planet.add(nightRim);
 
+  if (spec.airglow) {
+    const air = new THREE.Mesh(planet.geometry, new THREE.ShaderMaterial({
+      uniforms: {
+        tint: { value: new THREE.Color(spec.airglow) },
+        sunlight: { value: auToWorld(spec.positionAU).normalize().negate() },
+      },
+      vertexShader: `
+        varying float incidence;
+        varying float daylight;
+        uniform vec3 sunlight;
+        #include <common>
+        #include <logdepthbuf_pars_vertex>
+        void main() {
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vec3 n = normalize(normalMatrix * normal);
+          incidence = dot(n, normalize(-mvPosition.xyz));
+          daylight = dot(n, normalize(mat3(viewMatrix) * sunlight));
+          gl_Position = projectionMatrix * mvPosition;
+          #include <logdepthbuf_vertex>
+        }`,
+      fragmentShader: `
+        uniform vec3 tint;
+        varying float incidence;
+        varying float daylight;
+        #include <common>
+        #include <logdepthbuf_pars_fragment>
+        void main() {
+          #include <logdepthbuf_fragment>
+          float rim = pow(1.0 - clamp(incidence, 0.0, 1.0), 3.4);
+          float light = smoothstep(-0.5, 0.7, daylight);
+          gl_FragColor = vec4(tint, rim * (0.24 + 0.66 * light));
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }));
+    air.scale.setScalar(spec.key === "earth" ? 1.035 : 1.018);
+    planet.add(air);
+  }
+
   return planet;
 }
 
@@ -1083,7 +1122,13 @@ function addTarget(name, object, key) {
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = name;
-  button.addEventListener("click", () => selectTarget(key));
+  button.addEventListener("click", () => {
+    selectTarget(key);
+    if (compactSolar.matches) {
+      setRouteOpen(false);
+      touchJump.focus({ preventScroll: true });
+    }
+  });
   targetList.append(button);
   targetButtons.set(key, button);
 }
@@ -1093,9 +1138,13 @@ function selectTarget(key, lock = true) {
   selectedTarget = nextTarget;
   targetPulse = 1;
 
-  targetButtons.forEach((button) => button.classList.remove("is-active"));
+  targetButtons.forEach((button, targetKey) => {
+    const selected = nextTarget?.key === targetKey;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
   if (nextTarget) {
-    targetButtons.get(nextTarget.key)?.classList.add("is-active");
+    touchJump.setAttribute("aria-label", "Прыжок к цели: " + nextTarget.name);
     targetReadout.textContent = nextTarget.name;
   } else {
     targetReadout.textContent = "Свободный полет";
@@ -1105,6 +1154,10 @@ function selectTarget(key, lock = true) {
 }
 
 function initUi() {
+  setRouteOpen(false);
+  routeButton.addEventListener("click", () => setRouteOpen(!routeOpen));
+  compactSolar.addEventListener("change", () => setRouteOpen(false));
+  touchJump.addEventListener("click", jumpToSelectedTarget);
   selectTarget("earth", false);
   placeCameraNearTarget("earth");
   orbitToggle.classList.toggle("chip--active", orbitsVisible);
@@ -1154,10 +1207,8 @@ function jumpToSelectedTarget() {
 
   selectedTarget.object.getWorldPosition(tempVec);
   const currentDirection = tempVec2.copy(camera.position).sub(tempVec);
-  if (selectedTarget.key === "return-observatory" && compactSolar.matches) {
-    navigationFolded = true;
-    syncNavigationFold();
-  }
+  setRouteOpen(false);
+  hideTouchHint();
   const approachVector = selectedTarget.object.userData.approachVector;
   if (approachVector) currentDirection.copy(approachVector);
   if (currentDirection.lengthSq() < 0.001) {
@@ -1171,6 +1222,13 @@ function jumpToSelectedTarget() {
   camera.position.copy(tempVec).addScaledVector(currentDirection.normalize(), approachDistance);
   velocity.set(0, 0, 0);
   lookAtWorldPosition(tempVec);
+  jumpCount++;
+  clearTimeout(arrivalTimer);
+  arrival.querySelector("span").textContent = selectedTarget.name;
+  arrival.classList.remove("is-arriving");
+  void arrival.offsetWidth;
+  arrival.classList.add("is-arriving");
+  arrivalTimer = setTimeout(() => arrival.classList.remove("is-arriving"), 2150);
   canvas.focus();
 }
 
@@ -1229,6 +1287,12 @@ function bindControls() {
       event.preventDefault();
     }
 
+    if (event.code === "Escape" && routeOpen) {
+      setRouteOpen(false);
+      routeButton.focus();
+      return;
+    }
+    if (gameKeyCodes.has(event.code)) solarTouch.state.assisted = false;
     keys.add(event.code);
 
     if (event.code === "KeyO") {
@@ -1255,10 +1319,14 @@ function bindControls() {
     keys.delete(event.code);
   });
 
-  window.addEventListener("blur", () => {
+  function releaseFlightControls() {
     keys.clear();
-    touchState.clear();
-  });
+    solarTouch.reset();
+    if (solarTouch.state.assisted) velocity.set(0, 0, 0);
+  }
+  window.addEventListener("blur", releaseFlightControls);
+  window.addEventListener("pagehide", releaseFlightControls);
+  document.addEventListener("freeze", releaseFlightControls);
 
   window.addEventListener("resize", resize);
 
@@ -1266,6 +1334,7 @@ function bindControls() {
     "wheel",
     (event) => {
       event.preventDefault();
+      solarTouch.state.assisted = false;
       const impulse = -Math.sign(event.deltaY) * (superCruise ? LIGHT_SPEED_KM_S * 0.12 : 12);
       camera.getWorldDirection(forward);
       velocity.addScaledVector(forward, impulse);
@@ -1273,42 +1342,14 @@ function bindControls() {
     { passive: false },
   );
 
-  canvas.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "mouse") {
-      return;
+  solarTouch = createSolarTouch(document.querySelector("#solarStick"), canvas, {
+    onUse: hideTouchHint,
+    onSky: () => { if (routeOpen) setRouteOpen(false); },
+    onLook(dx, dy) {
+      const sensitivity = 2.35 / Math.max(320, Math.min(innerWidth, innerHeight));
+      yaw -= dx * sensitivity;
+      pitch = THREE.MathUtils.clamp(pitch - dy * sensitivity, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
     }
-
-    draggingLook = true;
-    lastTouch = { x: event.clientX, y: event.clientY };
-  });
-
-  canvas.addEventListener("pointermove", (event) => {
-    if (!draggingLook || event.pointerType === "mouse" || !lastTouch) {
-      return;
-    }
-
-    const dx = event.clientX - lastTouch.x;
-    const dy = event.clientY - lastTouch.y;
-    yaw -= dx * 0.006;
-    pitch -= dy * 0.006;
-    pitch = THREE.MathUtils.clamp(pitch, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
-    lastTouch = { x: event.clientX, y: event.clientY };
-  });
-
-  window.addEventListener("pointerup", () => {
-    draggingLook = false;
-    lastTouch = null;
-  });
-
-  document.querySelectorAll("[data-touch]").forEach((button) => {
-    const direction = button.dataset.touch;
-    button.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      touchState.add(direction);
-    });
-    button.addEventListener("pointerup", () => touchState.delete(direction));
-    button.addEventListener("pointercancel", () => touchState.delete(direction));
-    button.addEventListener("pointerleave", () => touchState.delete(direction));
   });
 }
 
@@ -1320,6 +1361,7 @@ function requestLock() {
 }
 
 function resize() {
+  solarTouch?.reset();
   const width = window.innerWidth;
   const height = window.innerHeight;
   camera.aspect = width / height;
@@ -1333,6 +1375,10 @@ export function resumeSolarFlight() {
   launchPanel.classList.add("is-hidden");
   clock.getDelta();
   resize();
+  if (compactSolar.matches && showTouchHint) {
+    touchHint.hidden = false;
+    hintTimer = setTimeout(hideTouchHint, 7400);
+  }
   animate();
 }
 
@@ -1340,9 +1386,12 @@ export function pauseSolarFlight() {
   solarActive = false;
   cancelAnimationFrame(solarFrame);
   keys.clear();
-  touchState.clear();
-  draggingLook = false;
-  lastTouch = null;
+  solarTouch.reset();
+  if (solarTouch.state.assisted) velocity.set(0, 0, 0);
+  setRouteOpen(false);
+  clearTimeout(hintTimer);
+  clearTimeout(arrivalTimer);
+  arrival.classList.remove("is-arriving");
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
 
@@ -1375,8 +1424,13 @@ function updateCamera(delta) {
   right.set(1, 0, 0).applyQuaternion(camera.quaternion);
   up.set(0, 1, 0).applyQuaternion(camera.quaternion);
 
-  const forwardInput = Number(keys.has("KeyW") || touchState.has("forward")) - Number(keys.has("KeyS") || touchState.has("backward"));
-  const rightInput = Number(keys.has("KeyD") || touchState.has("right")) - Number(keys.has("KeyA") || touchState.has("left"));
+  if (solarTouch.state.assisted) {
+    flyWithStick(delta);
+    return;
+  }
+
+  const forwardInput = Number(keys.has("KeyW")) - Number(keys.has("KeyS"));
+  const rightInput = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
   const upInput = Number(keys.has("Space")) - Number(keys.has("KeyC"));
   const afterburner = keys.has("ShiftLeft") || keys.has("ShiftRight");
 
@@ -1415,6 +1469,57 @@ function updateCamera(delta) {
     camera.position.setLength(solarClearance);
     velocity.multiplyScalar(0.62);
   }
+}
+
+// Assisted thrust is proportional to local clearance. A metre-size probe and a planet
+// can both be inspected without changing gears or drifting through the target.
+function flyWithStick(delta) {
+  const { x, y } = solarTouch.state;
+  if (x === 0 && y === 0 && velocity.lengthSq() === 0) return;
+  let nearest = null;
+  let clearance = Infinity;
+  for (const target of targetObjects) {
+    const radius = target.object.userData.trueRadius;
+    if (!radius) continue;
+    target.object.getWorldPosition(tempVec);
+    const gap = camera.position.distanceTo(tempVec) - radius;
+    if (gap < clearance) {
+      nearest = target.object;
+      clearance = gap;
+    }
+  }
+  const limit = THREE.MathUtils.clamp(clearance * 0.74, 0.04, LIGHT_SPEED_KM_S * 0.5);
+  touchVelocity.copy(forward).multiplyScalar(y * limit);
+  touchVelocity.addScaledVector(right, x * limit * 0.72);
+  velocity.lerp(touchVelocity, 1 - Math.exp(-(x || y ? 7 : 13) * delta));
+  if (!x && !y && velocity.length() < limit * 0.008) velocity.set(0, 0, 0);
+  camera.position.addScaledVector(velocity, delta);
+  if (!nearest) return;
+  nearest.getWorldPosition(tempVec);
+  tempVec2.copy(camera.position).sub(tempVec);
+  const radius = nearest.userData.trueRadius;
+  const minDistance = radius + Math.max(radius * 0.04, SHIP_RADIUS_KM);
+  if (tempVec2.lengthSq() < minDistance * minDistance) {
+    tempVec2.normalize();
+    camera.position.copy(tempVec).addScaledVector(tempVec2, minDistance);
+    const inward = velocity.dot(tempVec2);
+    if (inward < 0) velocity.addScaledVector(tempVec2, -inward);
+  }
+}
+
+export function getSolarSoundState() {
+  const object = selectedTarget?.object;
+  let near = 0;
+  let speedScale = 1260;
+  if (object) {
+    object.getWorldPosition(tempVec);
+    const distance = camera.position.distanceTo(tempVec);
+    near = THREE.MathUtils.clamp((3 - distance / getApproachDistance(object)) / 2, 0, 1);
+    if (solarTouch.state.assisted) {
+      speedScale = THREE.MathUtils.clamp((distance - (object.userData.trueRadius || 0)) * 0.74, 0.04, LIGHT_SPEED_KM_S * 0.5);
+    }
+  }
+  return { speed: Math.min(1, velocity.length() / speedScale), target: selectedTarget?.key, near, jump: jumpCount };
 }
 
 function updateSolarSystem(delta, elapsed) {
@@ -1516,7 +1621,8 @@ function formatDistance(au) {
     return `${(km / 1_000_000).toFixed(1)} млн км`;
   }
 
-  return `${Math.max(0, Math.round(km)).toLocaleString("ru-RU")} км`;
+  if (km < 1) return `${Math.max(0, Math.round(km * 1000))} м`;
+  return `${Math.round(km).toLocaleString("ru-RU")} км`;
 }
 
 function formatSpeed(worldUnitsPerSecond) {
@@ -1528,6 +1634,7 @@ function formatSpeed(worldUnitsPerSecond) {
   if (kmPerSecond >= 1_000_000) {
     return `${(kmPerSecond / 1_000_000).toFixed(1)} млн км/с`;
   }
+  if (kmPerSecond > 0 && kmPerSecond < 1) return `${Math.round(kmPerSecond * 1000)} м/с`;
   return `${Math.round(kmPerSecond).toLocaleString("ru-RU")} км/с`;
 }
 

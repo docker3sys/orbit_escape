@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="./expedition.css" />
     <link rel="stylesheet" href="./echo.css" />
     <link rel="stylesheet" href="./last.css" />
+    <link rel="stylesheet" href="./pilot-stick.css" />
   </head>
   <body>
     <main id="game" hidden>
@@ -21,11 +22,7 @@
       <section class="launch is-hidden" id="launchPanel" aria-label="Свободный полёт" hidden>
         <button id="launchButton" type="button">Продолжить полёт</button>
       </section>
-      <details class="solar-help"><summary>Управление</summary>
-        <p>Проведи пальцем по небу, чтобы осмотреться. Кнопки со стрелками двигают корабль. Выбери цель в навигации и нажми «Прыжок».</p>
-        <p>На клавиатуре WASD — движение, пробел и C — вверх и вниз, Q и E — крен. Мышь — обзор, Shift — форсаж, B — суперкруиз, T — прыжок. Esc освобождает курсор.</p>
-      </details>
-      <button id="solarMenu" class="solar-menu" type="button">‹  К выбору режима</button>
+      <button id="solarMenu" class="solar-menu" type="button" aria-label="Вернуться в ангар">‹ <span>Ангар</span></button>
 
       <aside class="hud hud--left" aria-label="Полетные данные">
         <div class="readout">
@@ -43,28 +40,46 @@
       </aside>
 
       <aside class="hud hud--right" aria-label="Навигация">
-        <div class="hud__title">Навигация</div>
-        <div class="target-list" id="targetList"></div>
-        <div class="switch-row">
-          <button id="orbitToggle" class="chip" type="button" aria-pressed="false">Орбиты</button>
-          <button id="labelsToggle" class="chip" type="button" aria-pressed="false">Метки</button>
-          <button id="jumpButton" class="chip" type="button">Прыжок</button>
+        <button id="solarRoute" class="solar-route solar-touch-only" aria-controls="solarRoutePanel" aria-expanded="false" type="button">Маршрут <span aria-hidden="true">⌄</span></button>
+        <div id="solarRoutePanel" class="solar-route-panel">
+          <div class="hud__title">Навигация</div>
+          <p id="solarListening" class="solar-listening"></p>
+          <div class="target-list" id="targetList"></div>
+          <div class="switch-row">
+            <button id="orbitToggle" class="chip" type="button" aria-pressed="false">Орбиты</button>
+            <button id="labelsToggle" class="chip" type="button" aria-pressed="false">Метки</button>
+            <button id="solarSound" class="chip" type="button" aria-pressed="true">Звук</button>
+            <button id="jumpButton" class="chip" type="button">Прыжок</button>
+          </div>
+          <details class="solar-help"><summary>Управление</summary>
+            <p class="solar-touch-only">Потяни стик вверх, чтобы лететь вперёд. Вниз — назад, в стороны — боком. Отпусти для остановки. Веди вторым пальцем по небу для обзора.</p>
+            <p>На клавиатуре WASD — движение, пробел и C — вверх и вниз, Q и E — крен. Мышь — обзор, Shift — форсаж, B — суперкруиз, T — прыжок.</p>
+          </details>
         </div>
       </aside>
 
-      <div class="mobile-pad" aria-hidden="true">
-        <button data-touch="forward" type="button">▲</button>
-        <button data-touch="left" type="button">◀</button>
-        <button data-touch="right" type="button">▶</button>
-        <button data-touch="backward" type="button">▼</button>
+      <div class="solar-touch-only solar-flight-deck">
+        <div class="solar-stick" id="solarStick" aria-label="Стик движения корабля">
+          <span class="solar-stick-knob" aria-hidden="true"></span>
+        </div>
+        <button type="button" id="solarJump" class="solar-warp">
+          <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><path d="M3 19h10L26 5m-8 1 9-2-1 8M4 13l7-1m-3 6 3-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Прыжок
+        </button>
       </div>
+      <p id="solarTouchHint" class="solar-touch-only solar-touch-hint">Стик — полёт · Свайп по небу — обзор</p>
+      <output id="solarSignal" class="solar-signal" aria-live="polite" hidden></output>
+      <div id="solarArrival" class="solar-arrival" aria-hidden="true"><span></span></div>
 
       <div class="labels" id="labels"></div>
     </main>
 
     <main id="hangar" aria-label="Выбор полёта">
       <header class="hangar-top">
-        <div class="hangar-brand"><span aria-hidden="true" class="orbit-mark"></span>ORBIT ESCAPE</div>
+        <div class="hangar-mast">
+          <div class="hangar-brand"><span aria-hidden="true" class="orbit-mark"></span>ORBIT ESCAPE</div>
+          <button type="button" id="handSwitch" aria-haspopup="dialog" aria-controls="handDialog">Управление</button>
+        </div>
         <div class="chapter-picker" role="group" aria-label="Выбор экспедиции">
           <button id="chapterBeacon" type="button" aria-pressed="true"><small>01</small> Тихий маяк</button>
           <button id="chapterEcho" type="button" aria-pressed="false"><small>02</small> Два голоса</button>
@@ -85,6 +100,18 @@
         <p id="launchStatus" role="status" hidden></p>
       </section>
     </main>
+    <dialog id="handDialog" aria-labelledby="handTitle" aria-describedby="handDescription">
+      <form method="dialog">
+        <header><h2 id="handTitle">Управление</h2><button class="hangar-close" value="close" aria-label="Закрыть">×</button></header>
+        <p id="handDescription">С какой стороны удобнее держать штурвал?</p>
+        <div class="hand-options" role="group" aria-label="Сторона штурвала">
+          <button type="button" data-hand-choice="right" aria-pressed="true"><span class="layout-sample" aria-hidden="true"><i></i><b></b></span>Штурвал слева</button>
+          <button type="button" data-hand-choice="left" aria-pressed="false"><span class="layout-sample" aria-hidden="true"><b></b><i></i></span>Штурвал справа</button>
+        </div>
+        <button type="button" id="hangarSound" aria-pressed="true">Звук включён</button>
+        <button class="hangar-done" value="done">Готово</button>
+      </form>
+    </dialog>
     <script type="module" src="./launch.js"></script>
   </body>
 </html>

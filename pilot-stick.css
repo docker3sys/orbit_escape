@@ -1,0 +1,32 @@
+/* The transparent landing zone is larger than the parked control. */
+.pilot-stick-zone {
+  --stick-rgb: 163, 238, 218;
+  position:absolute; z-index:4; bottom:max(12px,env(safe-area-inset-bottom));
+  left:max(12px,env(safe-area-inset-left)); width:clamp(128px,36vw,180px); height:clamp(100px,19dvh,154px);
+  display:block; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; pointer-events:auto;
+}
+.pilot-stick-ring {
+  position:absolute; top:54%; left:50%; width:76px; height:76px;
+  transform:translate(-50%,-50%); border-radius:50%; box-sizing:border-box;
+  border:1px solid rgba(var(--stick-rgb),.42); background:radial-gradient(circle,rgba(10,23,32,.65) 0 39%,rgba(8,17,26,.46) 40% 68%,rgba(var(--stick-rgb),.12) 70%);
+  box-shadow:0 2px 15px #030a1480; pointer-events:none;
+}
+.pilot-stick-ring::before,.pilot-stick-ring::after {
+  content:""; position:absolute; inset:8px; border-radius:50%;
+  border:1px dashed rgba(var(--stick-rgb),.30);
+}
+.pilot-stick-ring::after {inset:29px; border-style:solid;}
+.pilot-stick-knob {
+  display:block; position:absolute; top:50%; left:50%; width:29px; height:29px; margin:-14.5px 0 0 -14.5px;
+  z-index:1; border-radius:50%; border:1px solid rgba(var(--stick-rgb),.8);
+  background:radial-gradient(circle at 38% 30%,rgba(var(--stick-rgb),.54),rgba(var(--stick-rgb),.23) 68%,rgba(var(--stick-rgb),.12));
+  box-shadow:0 1px 4px #030a1880;
+}
+.pilot-stick-held .pilot-stick-ring {border-color:rgba(var(--stick-rgb),.82);}
+.pilot-stick-held .pilot-stick-knob {background:rgb(var(--stick-rgb));}
+html[data-hand=left] .pilot-stick-zone {left:auto;right:max(12px,env(safe-area-inset-right));}
+@media (hover:hover) and (pointer:fine) {.pilot-stick-zone {display:none}}
+@media (max-height:460px) and (orientation:landscape) {
+  .pilot-stick-zone {height:98px; width:132px;}
+  .pilot-stick-ring {width:66px;height:66px;}
+}

@@ -1,7 +1,6 @@
 import { createEchoFlight } from "./echo-flight.js";
 import { createEchoAudio } from "./echo-audio.js";
 import { createEchoUI } from "./echo-ui.js";
-import { prepareRouteCard, saveRouteCard, shareRouteCard } from "./expedition-postcard.js";
 
 const progress = new Map();
 const storageKey = choice => "orbit-escape/two-voices/1/" + choice;
@@ -59,7 +58,6 @@ export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
     if (name === "arrived" && state.phase === "gate") {
       state = {...state, phase:"arrived"};
       sound.cue("arrived");
-      prepareRouteCard(choice).catch(()=>{});
     } else if (state.phase === "listen" && (name === "sample-a" || name === "sample-b")) {
       const id = name === "sample-a" ? "a" : "b";
       if (state.samples[id]) return;
@@ -68,8 +66,10 @@ export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
       state = {...state, samples, phase};
       sound.cue(name);
       if (phase === "gate") sound.cue("gate");
-      ui.toast(phase === "gate" ? "Оба позывных совпали с картой. Переход найден." :
-        "Первый позывной записан. Остался второй передатчик.");
+      if (phase === "gate") ui.toast("Координаты совпали. Открывается проход.");
+      else if (id === "b") ui.toast("Дальний буй: «Слышу ваше эхо с другой стороны».");
+      else ui.toast(choice === "people" ? "Механик: «Нас всё так же шестеро. Буй сегодня ответил»." :
+        "Архив «Створа»: «Последний челнок ушёл. Оставляем частоту открытой».");
     } else return;
     remember();
     paint();
@@ -77,6 +77,7 @@ export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
   function release() {
     for (const key of keys.values()) flight?.key(key,false);
     keys.clear();
+    ui?.release();
   }
   function stop() {
     if (!active) return;
@@ -100,14 +101,6 @@ export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
     remember();
     paint();
   }
-  async function card(action) {
-    if (state.phase!=="arrived") return;
-    try {
-      if (action === "share-card" && await shareRouteCard(choice)) return;
-      const ok = await saveRouteCard(choice);
-      if (active && ok) ui.toast(action === "share-card" ? "Карту можно отправить из загрузок." : "Карта маршрута сохранена.");
-    } catch { if (active) ui.toast("Не удалось сохранить карту. Попробуй ещё раз."); }
-  }
   function action(name) {
     if (!active) return;
     switch (name) {
@@ -116,6 +109,7 @@ export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
         if (state.phase === "arrived") {remember();stop();onLast();}
         break;
       case "capture": flight.interact(); break;
+      case "gate-course": flight.courseToGate(); break;
       case "mute":
         muted=!muted;
         onMute(muted); sound.mute(muted);
@@ -124,7 +118,6 @@ export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
       case "replay":
         if (state.phase === "arrived") reset();
         break;
-      case "save-card": case "share-card": void card(name); break;
     }
   }
   const hooks = {onEvent:onFlightEvent, onTelemetry:data=>{telemetry=data;}};
@@ -140,10 +133,9 @@ export function openEcho({choice, startMuted, onMute, onExit, onLast}) {
   }
   try {
     sound.mute(muted);sound.unlock();
-    ui=createEchoUI(document.body,{action,moveTo:(x,y)=>flight?.moveTo(x,y)});
+    ui=createEchoUI(document.body,{action,moveTo:(x,y)=>flight?.moveTo(x,y),steer:(x,y)=>flight?.steer(x,y)});
     flight=createEchoFlight(ui.canvas,hooks);
     if (state.position) flight.restore?.(state.position);
-    if (state.phase==="arrived") prepareRouteCard(choice).catch(()=>{});
     remember(); paint();
     ui.canvas.focus({preventScroll:true});
     const directions={KeyA:"left",ArrowLeft:"left",KeyD:"right",ArrowRight:"right",
