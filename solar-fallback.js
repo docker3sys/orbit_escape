@@ -306,7 +306,7 @@ export function createSolarFallback(options={}) {
   function glow(x,y,r,core) {
     const halo=ctx.createRadialGradient(x,y,0,x,y,r*1.85);
     halo.addColorStop(0,core?'#fff4ca':'#e5cba3');halo.addColorStop(.47,core?'#f6ce85':'#ac8360');
-    halo.addColorStop(.55,core?'#e8ae5e5c':'#a6826535');halo.addColorStop(1,'#cc885200');
+    halo.addColorStop(.55,core?'rgba(232,174,94,.361)':'rgba(166,130,101,.208)');halo.addColorStop(1,'rgba(204,136,82,0)');
     ctx.fillStyle=halo;ctx.fillRect(x-r*1.85,y-r*1.85,r*3.7,r*3.7);
   }
   function drawBody(body,x,y,r,d) {
