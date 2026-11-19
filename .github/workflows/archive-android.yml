@@ -1,0 +1,65 @@
+name: Archive tagged Android build
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install dependencies and check the game
+        run: |
+          npm ci
+          npm test
+          npm run cap:sync
+      - name: Build unsigned store binaries
+        working-directory: android
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          bash gradlew :app:assembleRelease :app:bundleRelease
+      - name: Attach build to its tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          mkdir artifacts
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk "artifacts/Orbit-Escape-${TAG}-unsigned.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "artifacts/Orbit-Escape-${TAG}-unsigned.aab"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --verify-tag --title "Orbit Escape ${TAG}" --notes "Android APK, AAB и контрольные суммы. Бинарники без издательской подписи."
+          fi
+          # An old build is authoritative even if the Android toolchain embeds a new timestamp.
+          existing=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for file in artifacts/*.apk artifacts/*.aab; do
+            name=$(basename "$file")
+            if printf '%s\n' "$existing" | grep -Fxq "$name"; then
+              gh release download "$TAG" --pattern "$name" --dir artifacts --clobber
+            else
+              gh release upload "$TAG" "$file"
+            fi
+          done
+          (cd artifacts && sha256sum *.apk *.aab > SHA256SUMS)
+          if printf '%s\n' "$existing" | grep -Fxq SHA256SUMS; then
+            old=$(mktemp -d)
+            gh release download "$TAG" --pattern SHA256SUMS --dir "$old"
+            cmp artifacts/SHA256SUMS "$old/SHA256SUMS"
+          else
+            gh release upload "$TAG" artifacts/SHA256SUMS
+          fi
