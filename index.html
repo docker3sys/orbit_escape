@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="./echo.css" />
     <link rel="stylesheet" href="./last.css" />
     <link rel="stylesheet" href="./pilot-stick.css" />
+    <link rel="stylesheet" href="./release-ui.css" />
+    <link rel="stylesheet" href="./webview-layout.css" />
   </head>
   <body>
     <main id="game" hidden>
@@ -71,6 +73,7 @@
       <output id="solarSignal" class="solar-signal" aria-live="polite" hidden></output>
       <div id="solarArrival" class="solar-arrival" aria-hidden="true"><span></span></div>
 
+      <button type="button" id="liteContracts" class="lite-contracts" hidden>Рейс курьера</button>
       <div class="labels" id="labels"></div>
     </main>
 
@@ -78,7 +81,7 @@
       <header class="hangar-top">
         <div class="hangar-mast">
           <div class="hangar-brand"><span aria-hidden="true" class="orbit-mark"></span>ORBIT ESCAPE</div>
-          <button type="button" id="handSwitch" aria-haspopup="dialog" aria-controls="handDialog">Управление</button>
+          <button type="button" id="handSwitch" aria-haspopup="dialog" aria-controls="handDialog">Настройки</button>
         </div>
         <div class="chapter-picker" role="group" aria-label="Выбор экспедиции">
           <button id="chapterBeacon" type="button" aria-pressed="true"><small>01</small> Тихий маяк</button>
@@ -94,6 +97,7 @@
           <button id="beaconStart" type="button">Начать экспедицию <span aria-hidden="true">→</span></button>
           <button id="echoStart" type="button" hidden>Вылететь к «Кромке» <span aria-hidden="true">→</span></button>
           <button id="lastStart" type="button" hidden>Принять передачу <span aria-hidden="true">→</span></button>
+          <button id="careerStart" type="button">Карьера курьера</button>
           <button id="solarStart" type="button">Свободный полёт</button>
         </div>
         <button id="freshStart" class="fresh-start" type="button" hidden>Начать заново</button>
@@ -102,15 +106,35 @@
     </main>
     <dialog id="handDialog" aria-labelledby="handTitle" aria-describedby="handDescription">
       <form method="dialog">
-        <header><h2 id="handTitle">Управление</h2><button class="hangar-close" value="close" aria-label="Закрыть">×</button></header>
+        <header><h2 id="handTitle">Настройки</h2><button class="hangar-close" value="close" aria-label="Закрыть">×</button></header>
         <p id="handDescription">С какой стороны удобнее держать штурвал?</p>
         <div class="hand-options" role="group" aria-label="Сторона штурвала">
           <button type="button" data-hand-choice="right" aria-pressed="true"><span class="layout-sample" aria-hidden="true"><i></i><b></b></span>Штурвал слева</button>
           <button type="button" data-hand-choice="left" aria-pressed="false"><span class="layout-sample" aria-hidden="true"><b></b><i></i></span>Штурвал справа</button>
         </div>
+        <label class="graphics-choice">Графика
+          <select id="graphicsSelect">
+            <option value="auto">Автоматически</option>
+            <option value="low">Экономная</option>
+            <option value="high">Высокая</option>
+          </select>
+        </label>
+        <details class="art-credits"><summary>Авторы изображений</summary>
+          <p>Земля и ночные огни — NASA Earth Observatory и NASA/NOAA. Луна — NASA Scientific Visualization Studio по данным LRO. Карты других планет, облака Земли и кольца Сатурна — Solar System Scope, лицензия CC BY 4.0. Изображения адаптированы для игры.</p>
+          <p>Solar System Scope · solarsystemscope.com/textures<br>CC BY 4.0 · creativecommons.org/licenses/by/4.0/</p>
+        </details>
         <button type="button" id="hangarSound" aria-pressed="true">Звук включён</button>
         <button class="hangar-done" value="done">Готово</button>
       </form>
+    </dialog>
+    <dialog id="contractDialog" class="contract-dialog" aria-labelledby="contractTitle">
+      <header><h2 id="contractTitle">Курьерская сеть</h2><button type="button" data-courier="close" aria-label="Закрыть">×</button></header>
+      <div class="courier-account" data-courier-ref="account"></div>
+      <h3 data-courier-ref="title"></h3>
+      <p data-courier-ref="brief"></p>
+      <p data-courier-ref="status" role="status"></p>
+      <div class="contract-actions"><button type="button" data-courier="route">Выбрать цель</button><button type="button" data-courier="work"></button></div>
+      <details><summary>Корабль и улучшения</summary><div data-courier-ref="upgrades"></div></details>
     </dialog>
     <script type="module" src="./launch.js"></script>
   </body>

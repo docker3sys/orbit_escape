@@ -1,3 +1,5 @@
+import { campaignImage } from "./campaign-art.js";
+import { createRenderBudget } from "./mobile-quality.js";
 import { flightPanorama } from "./cockpit-sky.js";
 
 // Flight display for WebViews without a WebGL2 context. All artwork is generated offline.
@@ -9,13 +11,6 @@ const angle = n => Math.atan2(Math.sin(n), Math.cos(n));
 function randomSequence() {
   let s = 1271981;
   return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
-}
-
-function surface(w, h) {
-  const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  return c;
 }
 
 function drawPanorama(g, sky, w, h, yaw, pitch, local) {
@@ -34,38 +29,6 @@ function drawPanorama(g, sky, w, h, yaw, pitch, local) {
   g.restore();
 }
 
-function blackHoleArt() {
-  const w=440,h=255,c=surface(w,h),g=c.getContext("2d"),img=g.createImageData(w,h);
-  const gauss = n => Math.exp(-n*n);
-  for(let py=0;py<h;py++)for(let px=0;px<w;px++){
-    const sx=(px-w*.5)/(w*.5),sy=(py-h*.51)/(w*.5);
-    const x=sx*.978-sy*.21, y=sy*.978+sx*.21;
-    const r=Math.hypot(x,y), a=Math.atan2(y,x);
-    const event=.20, eclipse=clamp((event-r)*210,0,1);
-    const shadow=clamp((event+.022-r)*70,0,1);
-    const photon=gauss((r-event)/.0054);
-    const red=gauss((r-event-.011)/.017);
-    const lensR=Math.hypot(x/.342,y/(y<0?.316:.235));
-    const whorls=.8+.14*Math.sin(102*lensR+4*Math.sin(a*3))+.06*Math.sin(162*lensR+a*12);
-    const lens=(gauss((lensR-1)/.119)+.28*gauss((lensR-.842)/.032))*whorls*(y<0?1.04:.56);
-    const taper=Math.max(0,1-Math.abs(x)**1.5);
-    const diskY=y-.018-.025*x*x;
-    const diskHeight=.012+.036*taper*taper;
-    const striae=.82+.10*Math.sin(diskY*475+Math.abs(x)*19)+.08*Math.sin(diskY*704-x*54);
-    const beaming=clamp(.76-.49*x,.24,1.2);
-    const disk=(gauss(diskY/diskHeight)*striae+.47*gauss(diskY/(diskHeight*.27)))*taper*beaming;
-    const veil=(lens+.36*photon+.21*red)*(1-eclipse);
-    const glow=.14*gauss((r-.25)/.16)*(1-eclipse)+.15*gauss(diskY/(diskHeight*3))*taper;
-    const light=disk+veil, alpha=clamp(Math.max(shadow,1.6*light+glow),0,1), heat=clamp((light-.36)*1.05,0,1);
-    const i=(px+py*w)*4;
-    img.data[i]=Math.min(255,(light*.95+heat*.6+glow*.51)/Math.max(.01,alpha)*260);
-    img.data[i+1]=Math.min(255,(light*.34+heat*.57+glow*.12)/Math.max(.01,alpha)*255);
-    img.data[i+2]=Math.min(255,(light*.12+heat*.39+glow*.055)/Math.max(.01,alpha)*255);
-    img.data[i+3]=alpha*255;
-  }
-  g.putImageData(img,0,0);return c;
-}
-
 function ring(g,x,y,r,stroke,width=1) {
   if(r<=0)return;
   g.strokeStyle=stroke;g.lineWidth=width;g.beginPath();g.arc(x,y,r,0,TAU);g.stroke();
@@ -78,7 +41,12 @@ function path(g, points, fill, line=null, width=1) {
   if(line){g.strokeStyle=line;g.lineWidth=width;g.stroke()}
 }
 
-function voyager(g,x,y,scale) {
+function voyager(g,x,y,scale,art) {
+  if(art.naturalWidth){
+    g.save();g.translate(x,y);g.rotate(-.17);
+    g.drawImage(art,-45*scale,-38*scale,121*scale,121*scale*333/496);g.restore();
+    return;
+  }
   g.save();g.translate(x,y);g.scale(scale,scale);g.rotate(-.29);
   path(g,[[-3,2],[73,-5],[73,0],[0,10]],null,"#788d91",1.2);
   for(let i=0;i<8;i++)path(g,[[i*8,7-i],[i*8+5,-i],[i*8+9,6-i]],null,"#a9adb1",.7);
@@ -96,7 +64,14 @@ function voyager(g,x,y,scale) {
   g.fillStyle="#d5983d";g.fillRect(-1,-22,5,4);g.restore();g.restore();
 }
 
-function station(g,x,y,scale,outpost,lit,t) {
+function station(g,x,y,scale,outpost,lit,t,art) {
+  if(art.naturalWidth){
+    g.save();g.translate(x,y);g.rotate(outpost?.29:-.18);
+    g.globalAlpha=outpost&&!lit?.56:1;
+    g.drawImage(art,-53*scale,-38*scale,106*scale,106*scale*394/512);
+    g.globalAlpha=1;ring(g,0,0,2*scale,lit?"#fbd7a7":"#a3d8d2",scale);
+    g.restore();return;
+  }
   g.save();g.translate(x,y);g.scale(scale,scale);g.rotate(-.095);
   path(g,[[-40,5],[23,-13],[46,-9],[-16,11]],"#607480","#c2d2ce",1);
   for(const sign of [-1,1]){
@@ -137,9 +112,10 @@ function aperture(g,x,y,r,t,open,strength) {
 }
 
 export function createFallbackFlight(canvas, _THREE, hooks={}) {
+  const renderBudget=createRenderBudget();
   const g=canvas.getContext("2d",{alpha:false});
   if(!g)throw new Error("Canvas 2D unavailable");
-  const rand=randomSequence(), sky=flightPanorama(), black=blackHoleArt();
+  const rand=randomSequence(), sky=flightPanorama(), black=campaignImage("accretion"), probeArt=campaignImage("probe"), habitatArt=campaignImage("habitat");
   const stars=Array.from({length:470},()=>({x:rand(),y:rand(),s:.5+rand()**3*1.4,b:.29+rand()*.67,warm:rand()<.19}));
   const held=new Set();
   let stickX=0,stickY=0;
@@ -177,7 +153,7 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
   }
   function draw(packet){
     const width=Math.max(1,canvas.clientWidth||canvas.width),height=Math.max(1,canvas.clientHeight||canvas.height);
-    const ratio=Math.min(globalThis.devicePixelRatio||1,1.5,Math.max(.75,Math.sqrt(1600000/(width*height))));
+    const ratio=renderBudget.pixelRatio(width,height);
     if(width!==W||height!==H||ratio!==pixelRatio){
       W=width;H=height;pixelRatio=ratio;
       canvas.width=Math.max(1,Math.round(W*ratio));canvas.height=Math.max(1,Math.round(H*ratio));
@@ -199,17 +175,18 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
     }
     const [gx,gy]=project(bx,by);
     if(local) {
-      const [vx,vy]=project(-.17,.045);voyager(g,vx,vy,scale*.0038);
+      const [vx,vy]=project(-.17,.045);voyager(g,vx,vy,scale*.0043,probeArt);
     } else {
-      const [hx,hy]=project(-.40,.15);
-      const bhW=scale*1.01;g.drawImage(black,hx-bhW*.5,hy-bhW*.29,bhW,bhW*.58);
+      const [hx,hy]=project(-.29,.15);
+      const bhW=scale*1.08;
+      if(black.naturalWidth)g.drawImage(black,hx-bhW*.5,hy-bhW*.306,bhW,bhW*588/960);
       const [sx,sy]=project(.18,-.035);
       const stationSize=Math.min(2.1,.72+24/Math.max(18,dist));
-      station(g,sx,sy,scale*.00165*(stage==="approach"?stationSize:1.26),false,true,time);
+      station(g,sx,sy,scale*.00165*(stage==="approach"?stationSize:1.26),false,true,time,habitatArt);
       const [ox,oy]=project(.40,.075);
       const occupied=choice==="people"&&stage==="return";
       const outpostSize=stage==="deliver"&&choice==="people"?stationSize:1;
-      station(g,ox,oy,scale*.0023*outpostSize,true,occupied,time);
+      station(g,ox,oy,scale*.0023*outpostSize,true,occupied,time,habitatArt);
       for(let i=0;i<3;i++){
         const [x,y]=project(-.19+i*.108,-.14+i*.022),sz=scale*.0018;
         path(g,[[x,y-3.5*sz],[x+2.5*sz,y],[x,y+3.5*sz],[x-2.5*sz,y]],"#d3b67c");
@@ -234,6 +211,7 @@ export function createFallbackFlight(canvas, _THREE, hooks={}) {
   }
   function render(dt,state){
     if(dead||!state)return;
+    renderBudget.frame();
     dt=clamp(Number(dt)||0,0,.08);
     choice=state.choice;
     reducedMotion=Boolean(state.reducedMotion);

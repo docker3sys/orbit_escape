@@ -1,3 +1,6 @@
+import { createGameRenderer } from "./game-renderer.js";
+import { campaignTexture } from "./campaign-art.js";
+import { createRenderBudget } from "./mobile-quality.js";
 import { flightPanorama } from "./cockpit-sky.js";
 
 // All distances in the expedition are local navigation units.
@@ -56,19 +59,10 @@ function cylinder(T, from, to, radius, material, sides=7) {
   return mesh;
 }
 
-function makeVoyager(T) {
+function makeVoyager(T,film) {
   const probe=new T.Group();
-  const rng=seeded(198909), size=96, foil=new Uint8Array(size*size*4);
-  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const crease=Math.sin(x*.33+1.7*Math.sin(y*.12))*.49+Math.sin(y*.31+x*.14)*.3;
-    const l=.69+.18*crease+.12*rng()+.26*Math.exp(-Math.abs(crease)*19);
-    const n=(x+y*size)*4;foil[n]=Math.min(255,242*l);foil[n+1]=Math.min(255,179*l);foil[n+2]=Math.min(255,92*l);foil[n+3]=255;
-  }
-  const film=new T.DataTexture(foil,size,size);
-  film.colorSpace=T.SRGBColorSpace;film.wrapS=film.wrapT=T.RepeatWrapping;film.repeat.set(3,1);
-  film.minFilter=film.magFilter=T.LinearFilter;film.needsUpdate=true;
-  const gold=new T.MeshStandardMaterial({color:0xf5dbad,map:film,metalness:.43,roughness:.41,flatShading:true});
-  const ivory=new T.MeshStandardMaterial({color:0xd6d5ca,roughness:.54,metalness:.22,side:T.DoubleSide});
+  const gold=new T.MeshStandardMaterial({color:0xffffff,map:film,bumpMap:film,bumpScale:.052,metalness:.43,roughness:.39});
+  const ivory=new T.MeshStandardMaterial({color:0xcdceca,roughness:.56,metalness:.22,side:T.DoubleSide});
   const dark=new T.MeshStandardMaterial({color:0x273743,metalness:.56,roughness:.48});
   const body=new T.Mesh(new T.CylinderGeometry(.75,.8,.76,10),gold);
   probe.add(body);
@@ -149,38 +143,11 @@ function portal(T) {
 }
 
 function blackHole(T) {
-  const mat=new T.ShaderMaterial({
-    uniforms:{time:{value:0}}, transparent:true,depthWrite:false,toneMapped:false,
-    vertexShader:'varying vec2 v; void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`
-      precision highp float; varying vec2 v; uniform float time;
-      float gauss(float x){return exp(-x*x);}
-      void main(){
-        vec2 p=mat2(.986,-.167,.167,.986)*(v*2.-1.);
-        float r=length(p),t=time*.2, shadow=1.-smoothstep(.229,.255,r);
-        float ring=gauss((r-.253)/.007),halo=gauss((r-.262)/.045);
-        float side=smoothstep(-.02,.02,p.y);
-        vec2 lens=vec2(p.x/.395,p.y/mix(.270,.392,side));
-        float arcR=length(lens),arcA=atan(lens.y,lens.x);
-        float grains=.72+.16*sin(145.*arcR+2.5*sin(4.*arcA-t))+.12*sin(248.*arcR-6.*arcA+t);
-        float arc=gauss((arcR-1.)/.118)*mix(.42,.97,side)*grains;
-        float echo=gauss((arcR-.84)/.033)*mix(.2,.42,side);
-        float xx=abs(p.x),end=1.-smoothstep(.57,.96,xx);
-        float y=p.y+.034-.020*p.x*p.x,h=.019+.033*(1.-smoothstep(.06,.88,xx));
-        float band=gauss(y/h)*end, emit=.66+.34*(1.-smoothstep(-.45,.56,p.x));
-        float flux=.78+.14*sin(350.*y+19.*xx+2.*sin(18.*xx-t))+.08*sin(610.*y-42.*xx+t);
-        float core=gauss((y+.005)/(.26*h))*end,scatter=.15*gauss(y/(h*3.8))*end;
-        float light=emit*(1.17*arc+.55*echo+.78*ring+.16*halo+band*flux+.52*core);
-        float aura=.18*gauss((r-.30)/.18)+scatter;
-        float alpha=clamp(max(shadow,light*1.6+aura),0.,1.);
-        if(alpha<.007) discard;
-        vec3 embers=vec3(.92,.29,.075)*min(light,.68)*1.35;
-        vec3 hot=vec3(1.,.81,.59)*smoothstep(.35,1.28,light);
-        vec3 bloom=vec3(.52,.12,.055)*aura*(1.-shadow);
-        gl_FragColor=vec4(clamp((embers+hot+bloom)/max(alpha,.05),0.,1.),alpha);
-      }`
-  });
-  return new T.Mesh(new T.PlaneGeometry(100,100),mat);
+  // The far and near sides of the accretion disc were traced through the same
+  // gravitational field offline. One transparent plane preserves that detail on phones.
+  const image=campaignTexture(T,"accretion");
+  const mat=new T.MeshBasicMaterial({map:image,transparent:true,depthWrite:false,toneMapped:false});
+  return new T.Mesh(new T.PlaneGeometry(76,76*588/960),mat);
 }
 
 function navigationLight(T) {
@@ -200,18 +167,37 @@ function glow(T, texture, color, size) {
   s.scale.setScalar(size); s.renderOrder=3; return s;
 }
 
-function station(T, texture, small=false) {
+function station(T, texture, surfaces, small=false) {
   const object=new T.Group(), wheel=new T.Group();
-  const steel=new T.MeshStandardMaterial({color:0x8eafbd,roughness:.68,metalness:.43});
+  const tiles=surfaces.hull;
+  const steel=new T.MeshStandardMaterial({color:0xe6e8e2,map:tiles,bumpMap:tiles,bumpScale:.028,roughness:.62,metalness:.38});
   const carbon=new T.MeshStandardMaterial({color:0x293540,roughness:.58,metalness:.40});
-  const solar=new T.MeshStandardMaterial({color:0x263e6c,emissive:0x0b182b,side:T.DoubleSide,roughness:.55,metalness:.2});
+  const solar=new T.MeshStandardMaterial({color:0xe1eaff,map:surfaces.panel,emissive:0x060a12,side:T.DoubleSide,roughness:.55,metalness:.2});
+  const skin=new T.MeshStandardMaterial({map:surfaces.foil,metalness:.42,roughness:.48});
   const glass=new T.MeshBasicMaterial({color:small?0xffd097:0xafffe5,toneMapped:false});
-  const panelTrim=new T.LineBasicMaterial({color:0x9ba6b4,transparent:true,opacity:.68});
+
   const hub=new T.Mesh(new T.CylinderGeometry(.82,.93,5.7,12),steel);
   hub.rotation.x=Math.PI/2; object.add(hub);
   const ring=new T.Mesh(new T.TorusGeometry(3.3,.4,8,54),steel);
   wheel.add(ring);
   const collar=new T.Mesh(new T.TorusGeometry(3.3,.075,6,54),glass); collar.position.z=.39; wheel.add(collar);
+  // Pressure modules and raised radiator faces share draw calls around the wheel.
+  const modules=new T.InstancedMesh(new T.BoxGeometry(.57,.50,.48),steel,16);
+  const covers=new T.InstancedMesh(new T.BoxGeometry(.47,.32,.058),carbon,16);
+  const transform=new T.Object3D();
+  for(let i=0;i<16;i++){
+    const a=TAU*i/16;
+    transform.rotation.z=a+Math.PI/2;
+    transform.position.set(3.35*Math.cos(a),3.35*Math.sin(a),.32);
+    transform.updateMatrix();modules.setMatrixAt(i,transform.matrix);
+    transform.position.z+=.255;transform.updateMatrix();covers.setMatrixAt(i,transform.matrix);
+  }
+  wheel.add(modules,covers);
+  const airlock=new T.Mesh(new T.TorusGeometry(.64,.115,8,30),steel);
+  airlock.position.z=2.88;object.add(airlock);
+  const coupling=new T.Mesh(new T.CylinderGeometry(.53,.53,.09,12),carbon);
+  coupling.rotation.x=Math.PI/2;coupling.position.z=2.89;object.add(coupling);
+  const canopy=new T.Mesh(new T.BoxGeometry(1.45,.74,1.05),skin);canopy.position.set(.34,.73,-.86);object.add(canopy);
   const panels=new T.InstancedMesh(new T.BoxGeometry(.37,.19,.13),glass,32);
   const coords=new T.Object3D();
   for(let i=0;i<32;i++) {
@@ -228,11 +214,7 @@ function station(T, texture, small=false) {
     object.add(cylinder(T,[0,.3,-1.4],[side*6,.3,-1.4],.105,steel));
     const b=new T.Mesh(new T.BoxGeometry(3.7,2.3,.12),solar); b.position.set(side*5.5,.3,-1.4);
     object.add(b);
-    const pts=[];
-    for(let x=-1.8;x<=1.81;x+=.45)pts.push(x,-1.12,.08,x,1.12,.08);
-    for(let y=-1.1;y<=1.11;y+=.55)pts.push(-1.82,y,.08,1.82,y,.08);
-    const wire=new T.BufferGeometry();wire.setAttribute('position',new T.Float32BufferAttribute(pts,3));
-    const grid=new T.LineSegments(wire,panelTrim);grid.position.copy(b.position);object.add(grid);
+
   }
   const light=glow(T,texture,small?0xffc586:0x68ffe7,3.1);light.position.set(0,0,2.9);object.add(light);
   object.add(wheel);
@@ -267,23 +249,34 @@ function makeWarp(T, random) {
 
 export function createFlight(canvas, THREE, hooks={}) {
   const T=THREE, random=seeded(0x04c19b);
-  const renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+  const renderBudget = createRenderBudget();
+  const renderer=createGameRenderer(T,{canvas,antialias:renderBudget.profile()!=='low',alpha:false});
+  function contextLost(event) {
+    event.preventDefault();
+    if (!disposed) hooks.onContextLost?.();
+  }
+  canvas.addEventListener('webglcontextlost', contextLost);
   renderer.outputColorSpace=T.SRGBColorSpace;
   renderer.setClearColor(0x030710);
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(60,1,.1,440);
   camera.rotation.order='YXZ'; scene.add(camera);
   const sky=deepSky(T,random);scene.add(sky.group);
-  scene.add(new T.HemisphereLight(0xd3edff,0x2e4055,1.9));
-  const key=new T.DirectionalLight(0xffdeb0,3.7);key.position.set(-5,4,9);scene.add(key);
-  const edge=new T.DirectionalLight(0x74cbe3,1.65);edge.position.set(4,-2,-3);scene.add(edge);
+  scene.add(new T.HemisphereLight(0xcddef5,0x293847,.95));
+  const key=new T.DirectionalLight(0xffeedc,3.35);key.position.set(-5,4,9);scene.add(key);
+  const edge=new T.DirectionalLight(0x8babc8,.85);edge.position.set(4,-2,-3);scene.add(edge);
   const solar=new T.Group(),remote=new T.Group();scene.add(solar,remote);
   const tex=navigationLight(T);
-  const probe=makeVoyager(T);probe.position.set(-2.75,.1,-8.6);solar.add(probe);
+  const surfaces={
+    foil:campaignTexture(T,"foil",2,1),
+    hull:campaignTexture(T,"hull",8,1),
+    panel:campaignTexture(T,"panel"),
+  };
+  const probe=makeVoyager(T,surfaces.foil);probe.position.set(-1.85,.1,-10.9);solar.add(probe);
   const farSun=glow(T,tex,0xffd39d,12);farSun.position.set(-95,18,-130);solar.add(farSun);
   const worm=portal(T),localGate=new T.Vector3(9.4,2.1,-32),remoteGate=new T.Vector3(-1,0,2);
   scene.add(worm);
-  const hole=blackHole(T);hole.position.set(-23,5,-67);remote.add(hole);
-  const main=station(T,tex),outpost=station(T,tex,true);
+  const hole=blackHole(T);hole.position.set(-16,9,-78);remote.add(hole);
+  const main=station(T,tex,surfaces),outpost=station(T,tex,surfaces,true);
   main.object.position.set(17,1,-86);outpost.object.position.set(-8,4,-114);
   outpost.object.scale.setScalar(.72);remote.add(main.object,outpost.object);
   const markers=[[5,-.5,-22],[15,.2,-47],[20,1,-66]].map((xyz,i)=>{
@@ -357,10 +350,10 @@ export function createFlight(canvas, THREE, hooks={}) {
   function resize() {
     const w=Math.max(1,Math.round(canvas.clientWidth||canvas.parentElement?.clientWidth||globalThis.innerWidth||1));
     const h=Math.max(1,Math.round(canvas.clientHeight||canvas.parentElement?.clientHeight||globalThis.innerHeight||1));
-    const dpr=Math.min(globalThis.devicePixelRatio||1,1.55,Math.max(.75,Math.sqrt(1600000/(w*h))));
+    const dpr=renderBudget.pixelRatio(w,h);
     if(w===oldWidth&&h===oldHeight&&dpr===oldDpr)return;
     oldWidth=w;oldHeight=h;oldDpr=dpr;
-    renderer.setPixelRatio(dpr);renderer.setSize(w,h,false);
+    renderer.setDrawingBufferSize(w,h,dpr);
     sky.stars.material.uniforms.pixel.value=dpr;
     camera.aspect=w/h;camera.updateProjectionMatrix();
   }
@@ -371,7 +364,6 @@ export function createFlight(canvas, THREE, hooks={}) {
     worm.material.uniforms.open.value+=((open?1:0)-worm.material.uniforms.open.value)*Math.min(1,dt*9);
     worm.material.uniforms.strength.value=stage==='scan'?.10+.70*strength**3:1;
     worm.visible=stage!=='complete'||choice==='relay';
-    hole.material.uniforms.time.value=clock;
     probe.rotation.z=-.24+.022*Math.sin(clock*.24);
     main.wheel.rotation.z=clock*.035;outpost.wheel.rotation.z=clock*.026;
     const occupied=choice==='people'&&(stage==='return'||stage==='complete');
@@ -386,7 +378,9 @@ export function createFlight(canvas, THREE, hooks={}) {
       warpLines.material.opacity=Math.sin(Math.PI*amount)**.7*.95;
       warpLines.scale.setScalar(1+amount*2);
     }
-    const fov=60+(lastState.reducedMotion?0:(warpTime>0?17*Math.sin(amount*Math.PI):Math.min(4,velocity.length()*.17)));
+    // Keep the probe, the shadow and the approach beacon in frame on tall phones.
+    const baseFov=Math.max(60,Math.min(98,2*Math.atan(Math.tan(22*Math.PI/180)/camera.aspect)*180/Math.PI));
+    const fov=baseFov+(lastState.reducedMotion?0:(warpTime>0?17*Math.sin(amount*Math.PI):Math.min(4,velocity.length()*.17)));
     if(Math.abs(fov-camera.fov)>.06){camera.fov=fov;camera.updateProjectionMatrix();}
   }
   function travel(dt,thrust,stage) {
@@ -418,12 +412,12 @@ export function createFlight(canvas, THREE, hooks={}) {
     if(stage==='approach'&&pos.z<-45&&pos.z>-52&&pos.x>5&&pos.x<30)safe.set(15,.2,-47);
   }
   function render(elapsed,state={}) {
-    if(disposed)return;
+    if(disposed || renderer.getContext().isContextLost())return;
     const dt=clamp(Number.isFinite(elapsed)?elapsed:0,0,.075);
     const stage=state.stage||'scan',choice=state.choice;
     lastState=state;
     if(lastStage!==stage||lastChoice!==choice)enter(stage,choice);
-    resize();clock+=dt;
+    renderBudget.frame();resize();clock+=dt;
     const phase=(clock%3.6)/3.6;
     const extended=choice==='relay'&&stage==='return';
     const open=phase>=(extended?.42:.48)&&phase<=(extended?.93:.83);
@@ -473,6 +467,7 @@ export function createFlight(canvas, THREE, hooks={}) {
   function dispose() {
     if(disposed)return;
     disposed=true;held.clear();
+    canvas.removeEventListener('webglcontextlost',contextLost);
     const materials=new Set(), geometries=new Set(),textures=new Set();
     scene.traverse(o=>{
       if(o.geometry)geometries.add(o.geometry);
@@ -481,6 +476,7 @@ export function createFlight(canvas, THREE, hooks={}) {
     });
     materials.forEach(m=>{if(m.map)textures.add(m.map);m.dispose();});
     textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());renderer.dispose();
+    if (!renderer.getContext().isContextLost()) renderer.forceContextLoss();
   }
   return {render,input,drag,stick,reset,dispose};
 }

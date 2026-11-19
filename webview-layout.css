@@ -1,0 +1,72 @@
+/* Physical edges for WebViews which predate the inset shorthand. */
+@supports not (inset: 0) {
+  #game, #hangar, .vignette, .labels, .solar-fold, .oe-expedition, .oe-space,
+  .oe-edge, .oe-flight, .oe-panel, .echo-screen, .echo-map canvas,
+  .last-screen, .last-view canvas, #space, .overlay, .loading-screen {
+    top:0; right:0; bottom:0; left:0;
+  }
+  .oe-head { top:0; right:0; left:0 }
+  .oe-console { right:0; bottom:0; left:0 }
+  .oe-bracket { top:7px; right:7px; bottom:7px; left:7px }
+  .pilot-stick-ring::before { top:8px; right:8px; bottom:8px; left:8px }
+  .pilot-stick-ring::after { top:29px; right:29px; bottom:29px; left:29px }
+  .solar-stick::before { top:10%; right:10%; bottom:10%; left:10% }
+  .look-zone { top:0; right:0; bottom:0; left:50% }
+  .joystick::after { top:18px; right:18px; bottom:18px; left:18px }
+}
+
+/* Standalone Android WebViews have fixed screen bounds, including on rotation. */
+@supports not (height: 1dvh) {
+  .pilot-stick-zone { height:118px }
+  .last-deck { max-height:50vh }
+  .last-screen[data-phase=fly] .last-deck { max-height:43vh }
+  #handDialog { max-height:calc(100vh - 24px) }
+  @media (max-height:460px) and (orientation:landscape) {
+    .pilot-stick-zone { height:98px }
+    .last-screen[data-phase=tune] .last-deck {max-height:58vh}
+  }
+}
+
+@supports not (width: clamp(1px, 2vw, 3px)) {
+  #hangar { padding:14px 16px }
+  .hangar-intro { margin:20px 0 0 }
+  .hangar-intro h1 { font-size:64px }
+  .hangar-brand { margin-right:12px }
+  .hangar-actions button { margin:2px }
+  #handDialog { width:90%; max-width:380px }
+  .oe-expedition { --oe-pad:13px }
+  .oe-head { padding:7px 13px 0 }
+  .oe-panel { padding:61px 13px 14px }
+  .oe-panel-card { width:100%; max-width:490px; padding:18px }
+  .oe-panel-card h1 { font-size:34px }
+  .echo-screen { --echo-gutter:13px; --echo-stick-size:83px }
+  .last-screen { --last-gutter:13px; --last-controls-gap:13px }
+  .echo-header, .last-header { padding:5px 12px }
+  .echo-dock, .last-deck { padding:8px 12px }
+  #game { --solar-edge-left:12px; --solar-edge-right:12px; --solar-edge-top:10px;
+    --solar-deck-bottom:16px; --solar-stick-size:104px; --pad:14px }
+  .panel { width:100%; max-width:670px }
+  @media (pointer:coarse), (hover:none) {
+    .oe-expedition .oe-console { top:59px; bottom:auto; padding:0 13px }
+    .oe-expedition .oe-objective { width:100%; max-width:355px }
+    .pilot-stick-zone { left:12px; bottom:12px; width:132px }
+    html[data-hand=left] .pilot-stick-zone { right:12px; left:auto }
+    .echo-dock .echo-stick { left:auto; bottom:auto; width:100%; height:83px }
+    html[data-hand=left] .echo-dock .echo-stick { right:auto }
+    .oe-expedition .oe-cruise { right:19px; bottom:34px }
+    html[data-hand=left] .oe-expedition .oe-cruise { left:19px; right:auto }
+    .last-screen[data-phase=fly] .last-deck { right:13px; bottom:18px; width:49vw; max-width:330px }
+    html[data-hand=left] .last-screen[data-phase=fly] .last-deck { left:13px; right:auto }
+    #solarRoutePanel { width:calc(100vw - 30px); max-width:320px; max-height:calc(100vh - 72px) }
+    #game .hud--right { max-width:calc(100vw - 24px) }
+  }
+  @media (max-height:500px) and (orientation:landscape) {
+    #hangar { padding:6px 16px }
+    .hangar-intro { margin:6px 0 0 }
+    .hangar-intro h1 { font-size:44px; margin:9px 0 }
+    #game { --solar-stick-size:90px; --solar-deck-bottom:9px }
+    .echo-screen { --echo-stick-size:76px }
+    .echo-dock .echo-stick { height:76px }
+    .last-screen[data-phase=fly] .last-deck { width:35vw; max-width:262px }
+  }
+}

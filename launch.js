@@ -1,3 +1,8 @@
+import "./webview-compat.js";
+import { getQualityPreference, setQualityPreference } from "./mobile-quality.js";
+import { createSolarFallback } from "./solar-fallback.js";
+import { openCourierDeck, readCourierFlight } from "./courier-lite.js";
+import { createCampaign } from "./courier/gameplay.mjs";
 import { lastProgress, openLast } from "./last-session.js";
 import { echoProgress, openEcho } from "./echo-session.js";
 import * as THREE from "./vendor/three.module.js";
@@ -30,8 +35,21 @@ const bindings = {
 const held = new Set();
 let session = null;
 let solar = null;
+let usingSolarCanvas = false;
+let courierFrame = null;
+let courierDeck = null;
+const careerStart = document.querySelector("#careerStart");
+const graphics = document.querySelector("#graphicsSelect");
+const veteran = createCampaign().state;
+if (veteran.started && !getItem("orbit-escape/graphics/1")) setQualityPreference(veteran.settings.quality);
+graphics.value = getQualityPreference();
+graphics.addEventListener("change", () => {
+  setQualityPreference(graphics.value);
+  const career = createCampaign();
+  if (career.state.started) career.setSetting("quality", graphics.value);
+});
 let opening = false;
-let muted = getItem(SOUND) === "1";
+let muted = getItem(SOUND) === null ? veteran.started && !veteran.settings.sound : getItem(SOUND) === "1";
 let radio = null;
 const handDialog = document.querySelector("#handDialog");
 const handChoices = handDialog.querySelectorAll("[data-hand-choice]");
@@ -60,6 +78,8 @@ function setSoundMuted(value) {
   muted = value;
   writeItem(SOUND, value ? "1" : "0");
   syncSoundButtons();
+  const career = createCampaign();
+  if (career.state.started) career.setSetting("sound", !value);
 }
 function syncSoundButtons() {
   for (const button of [hangarSound, solarSound]) {
@@ -111,6 +131,7 @@ function persist(s) {
 function menu(message = "") {
   solarView.hidden = true;
   hangar.hidden = false;
+  careerStart.textContent = createCampaign().state.started ? "Продолжить карьеру" : "Карьера курьера";
   status.textContent = message;
   status.hidden = !message;
   const choice = nextChoice();
@@ -281,6 +302,16 @@ function tick(s,time) {
   s.frame = requestAnimationFrame(t => tick(s,t));
 }
 
+function installFlightCanvas(s,hooks) {
+  // Keep the focusable input surface and its gesture listeners when the GPU goes away.
+  const display = document.createElement("canvas");
+  display.className = s.ui.canvas.className;
+  display.style.pointerEvents = "none";
+  display.setAttribute("aria-hidden","true");
+  s.ui.canvas.after(display);
+  s.flat = true;
+  s.flight = createFallbackFlight(display,THREE,hooks);
+}
 function begin(reset=false) {
   if (opening || session || otherFlightActive) return;
   const saved = !reset && checkpoint;
@@ -298,17 +329,21 @@ function begin(reset=false) {
       stick:(x,y)=>s.flight?.stick(x,y),
       look:(dx,dy)=>s.flight?.drag(dx,dy)
     });
-    const hooks = {onEvent:name=>flightEvent(s,name), onTelemetry:data=>{s.telemetry=data;}};
+    const hooks = {
+      onEvent:name=>flightEvent(s,name),
+      onTelemetry:data=>{s.telemetry=data;},
+      onContextLost:() => {
+        if (session !== s || s.flat) return;
+        s.flight?.dispose();
+        releaseKeys();
+        installFlightCanvas(s,hooks);
+        s.ui.toast("Полёт продолжается в облегчённой графике.");
+      }
+    };
     try {
       s.flight=createFlight(s.ui.canvas,THREE,hooks);
     } catch (err) {
-      // A WebGL canvas cannot switch to 2D. Keep the original as the touch surface.
-      const replacement = document.createElement("canvas");
-      replacement.className = s.ui.canvas.className;
-      replacement.style.pointerEvents="none";
-      replacement.setAttribute("aria-hidden","true");
-      s.ui.canvas.after(replacement);
-      s.flight=createFallbackFlight(replacement,THREE,hooks);
+      installFlightCanvas(s,hooks);
     }
     hangar.hidden=true;
     persist(s);
@@ -332,8 +367,71 @@ start.addEventListener("click",()=>begin());
 fresh.addEventListener("click",()=>{
   if (window.confirm("Начать новый рейс и заменить текущее сохранение?")) begin(true);
 });
+function observatoryChoice() {
+  const preferred = nextChoice();
+  return [preferred, preferred === "people" ? "relay" : "people"].find(key => lastProgress(key)?.unlocked);
+}
+function rasterSolar(snapshot = {}) {
+  if (!usingSolarCanvas) {
+    solar?.retireSolarFlight?.();
+    solar = createSolarFallback({...snapshot, unlocked:observatoryChoice()});
+    usingSolarCanvas = true;
+  }
+  return solar;
+}
+function leaveSolar() {
+  courierDeck?.close();
+  courierDeck = null;
+  radio?.stop();
+  solar?.pauseSolarFlight();
+  menu();
+  free.focus();
+}
+function closeCareer(syncSettings = true) {
+  if (!courierFrame) return;
+  courierFrame.remove();
+  courierFrame = null;
+  otherFlightActive = false;
+  const career = createCampaign();
+  // The courier's settings screen may have changed them while the outer page was idle.
+  if (syncSettings && career.state.started) {
+    setQualityPreference(career.state.settings.quality);
+    graphics.value = getQualityPreference();
+    muted = !career.state.settings.sound;
+    writeItem(SOUND,muted ? "1" : "0");
+    syncSoundButtons();
+  }
+  menu();
+  careerStart.focus();
+}
+function openCareer() {
+  if (opening || session || otherFlightActive) return;
+  // Both cockpits share the same pilot preferences, including on the very first contract.
+  const career = createCampaign();
+  career.setSetting("quality",getQualityPreference());
+  career.setSetting("sound",!muted);
+  if (usingSolarCanvas) { void openSolar(false,true); return; }
+  otherFlightActive = true;
+  hangar.hidden = true;
+  const frame = document.createElement("iframe");
+  frame.id = "courierFrame";
+  frame.title = "Солнечный курьер";
+  const embedded = document.querySelector("template#portableCourier");
+  if (embedded) frame.srcdoc = embedded.content.textContent;
+  else frame.src = "./courier/index.html";
+  courierFrame = frame;
+  document.body.append(frame);
+  frame.focus();
+}
+careerStart.addEventListener("click", openCareer);
+window.addEventListener("orbit:courier-exit", closeCareer);
+window.addEventListener("orbit:courier-lite", () => {
+  if (!courierFrame) return;
+  closeCareer(false);
+  void openSolar(false,true);
+});
 free.addEventListener("click",()=>openSolar(false));
-async function openSolar(visit) {
+async function openSolar(visit, career = false) {
   if (opening || session || otherFlightActive) return;
   opening=true;free.disabled=true;start.disabled=true;
   radio ??= createSolarRadio({
@@ -341,26 +439,51 @@ async function openSolar(visit) {
     signal:document.querySelector("#solarSignal"),
     log:document.querySelector("#solarListening"),
   });
-  // Resume the mobile audio context during the original tap, before loading WebGL.
   radio.start(muted);
   try {
     solarView.hidden=false;
-    solar ??= await import("./app.js");
-    const preferred=nextChoice();
-    const unlocked=[preferred,preferred==="people" ? "relay" : "people"].find(key=>lastProgress(key)?.unlocked);
+    if (career) rasterSolar(readCourierFlight() || {});
+    else if (!solar) {
+      try { solar = await import("./app.js"); }
+      catch { rasterSolar(); }
+    }
+    const unlocked=observatoryChoice();
     if (unlocked) solar.setObservatoryUnlocked(unlocked);
     solar.resumeSolarFlight();
     if (visit && unlocked) solar.visitObservatory();
+    if (career) courierDeck = openCourierDeck(solar);
     hangar.hidden=true;
   } catch(err) {
     radio.stop();
+    solar?.pauseSolarFlight();
     console.error("Solar flight",err);
-    menu("Свободному полёту нужен WebGL 2. Экспедиция также поддерживает облегчённую графику.");
+    menu("Не удалось запустить графику. Обнови Android System WebView и открой игру снова.");
   } finally {
     opening=false;free.disabled=false;start.disabled=false;
   }
 }
-document.querySelector("#solarMenu").addEventListener("click",()=>{radio?.stop();solar?.pauseSolarFlight();menu();free.focus();});
+window.addEventListener("orbit:solar-context-lost", event => {
+  const visible = !solarView.hidden && !document.hidden && !courierFrame;
+  rasterSolar(event.detail || {});
+  if (visible) solar.resumeSolarFlight();
+});
+document.querySelector("#solarMenu").addEventListener("click",leaveSolar);
+document.addEventListener("orbit:back", event => {
+  const dialog = document.querySelector("dialog[open]");
+  if (dialog) dialog.close();
+  else if (courierFrame) {
+    if (!courierFrame.contentWindow?.orbitCourierBack?.()) closeCareer();
+  } else if (!solarView.hidden) {
+    const route = document.querySelector("#solarRoute");
+    if (route?.getAttribute("aria-expanded") === "true") route.click();
+    else leaveSolar();
+  } else if (session) leave();
+  else if (otherFlightActive) {
+    const exit = document.querySelector(".last-screen [data-action=exit], .echo-screen [data-action=exit]");
+    if (exit) exit.click();
+  } else return;
+  event.preventDefault();
+});
 window.addEventListener("keydown",event=>{
   const s=session;
   if (!s || event.ctrlKey || event.altKey || event.metaKey) return;

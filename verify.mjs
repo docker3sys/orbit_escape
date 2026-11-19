@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 
 const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const debugPort = 9333;
-const appUrl = "http://127.0.0.1:5173/";
+const appUrl = "http://127.0.0.1:5173/?render-probe";
 const outputDir = join(process.cwd(), "screenshots");
 let browser = null;
 

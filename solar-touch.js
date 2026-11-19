@@ -1,5 +1,6 @@
 // Keep the thumb that pilots and the thumb that looks around independent.
-export function createSolarTouch(stick, sky, { onLook, onUse, onSky }) {
+export function createSolarTouch(stick, sky, { onLook, onUse, onSky, signal }) {
+  const listeners = {signal};
   const state = { x: 0, y: 0, assisted: false };
   let stickId = null;
   let lookId = null;
@@ -49,12 +50,12 @@ export function createSolarTouch(stick, sky, { onLook, onUse, onSky }) {
     stick.classList.add('is-engaged');
     onUse();
     updateStick(event);
-  });
+  }, listeners);
   stick.addEventListener('pointermove', event => {
     if (event.pointerId === stickId) updateStick(event);
-  });
+  }, listeners);
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-    stick.addEventListener(type, endStick);
+    stick.addEventListener(type, endStick, listeners);
   }
 
   sky.addEventListener('pointerdown', event => {
@@ -64,7 +65,7 @@ export function createSolarTouch(stick, sky, { onLook, onUse, onSky }) {
     lastY = event.clientY;
     sky.setPointerCapture(lookId);
     onSky();
-  });
+  }, listeners);
   sky.addEventListener('pointermove', event => {
     if (event.pointerId !== lookId) return;
     const dx = event.clientX - lastX;
@@ -75,11 +76,11 @@ export function createSolarTouch(stick, sky, { onLook, onUse, onSky }) {
       onUse();
       onLook(dx, dy);
     }
-  });
+  }, listeners);
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     sky.addEventListener(type, event => {
       if (event.pointerId === lookId) lookId = null;
-    });
+    }, listeners);
   }
 
   return {

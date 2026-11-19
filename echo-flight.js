@@ -1,3 +1,5 @@
+import { campaignImage, makeCampaignBackdrop } from "./campaign-art.js";
+import { createRenderBudget } from "./mobile-quality.js";
 // The flight plane is measured in local navigation units. The screen may rotate
 // the chart by 90 degrees on portrait devices, but radio propagation stays put.
 const TAU = Math.PI * 2;
@@ -11,14 +13,6 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const length = (p, q = ORIGIN) => Math.hypot(q.x - p.x, q.y - p.y);
 const polar = (angle, radius) => ({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
 const angleOf = p => Math.atan2(p.y, p.x);
-
-function generator(seed) {
-  let value = seed >>> 0;
-  return () => {
-    value = (Math.imul(1664525, value) + 1013904223) >>> 0;
-    return value / 4294967296;
-  };
-}
 
 function segmentClearance(a, b) {
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -51,87 +45,6 @@ function plotCourse(from, to) {
   return points;
 }
 
-function paintSky(ctx, width, height) {
-  const rnd = generator(37021);
-  const nw = 360, nh = 248, low = document.createElement("canvas");
-  low.width = nw; low.height = nh;
-  const small = low.getContext("2d");
-  const pixels = small.createImageData(nw, nh);
-  const table = Array.from({ length: 4096 }, rnd);
-  function noise(x, y) {
-    const ix = Math.floor(x), iy = Math.floor(y);
-    let fx = x - ix, fy = y - iy;
-    fx *= fx * (3 - 2 * fx); fy *= fy * (3 - 2 * fy);
-    const ix0 = ix & 63, ix1 = (ix + 1) & 63, iy0 = (iy & 63) * 64, iy1 = ((iy + 1) & 63) * 64;
-    return ((1 - fx) * table[iy0 + ix0] + fx * table[iy0 + ix1]) * (1 - fy)
-      + ((1 - fx) * table[iy1 + ix0] + fx * table[iy1 + ix1]) * fy;
-  }
-  for (let j = 0; j < nh; j++) {
-    for (let i = 0; i < nw; i++) {
-      const x = i / nw, y = j / nh;
-      const warp = noise(x * 4 + 17, y * 5 + 16);
-      const n = noise(x * 8 + warp * 4, y * 8 + warp * 4) * .62
-        + noise(x * 26 + warp * 7, y * 31 + 6) * .28 + noise(x * 82, y * 95) * .10;
-      const band = (y - .94 + .77 * x + .14 * Math.sin(5.5 * x) + .12 * warp) * 3.65;
-      const stream = Math.exp(-band * band) * Math.max(0, 1.22 * n - .32);
-      const warm = Math.max(0, (x - .45) * 1.7);
-      const idx = (j * nw + i) * 4;
-      pixels.data[idx] = 5 + 4 * n + stream * (18 + warm * 42);
-      pixels.data[idx + 1] = 11 + 8 * n + stream * (49 - warm * 13);
-      pixels.data[idx + 2] = 20 + 9 * n + stream * (52 - warm * 13);
-      pixels.data[idx + 3] = 255;
-    }
-  }
-  small.putImageData(pixels, 0, 0);
-  ctx.drawImage(low, 0, 0, width, height);
-  for (let i = 0, count = Math.min(650, Math.max(150, width * height / 800)); i < count; i++) {
-    const x = rnd() * width, y = rnd() * height, light = rnd();
-    ctx.fillStyle = i % 6 === 0 ? "rgba(255,215,176,.68)" : "rgba(204,226,236,.7)";
-    ctx.globalAlpha = .22 + light * .65;
-    const r = light > .988 ? 1.25 : .25 + light * .51;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
-    if (light > .988) {
-      ctx.globalAlpha = .23;
-      ctx.fillRect(x - 3.4, y - .4, 6.8, .8);
-      ctx.fillRect(x - .4, y - 3.4, .8, 6.8);
-    }
-  }
-  ctx.globalAlpha = 1;
-  // This unlit moon is outside the navigation plane; only its upper atmosphere catches the star.
-
-  const r = Math.min(width, height) * .34;
-  const cx = width - r * .18, cy = -r * .44;
-  const haze = ctx.createRadialGradient(cx, cy, r * .89, cx, cy, r * 1.18);
-  haze.addColorStop(0, "rgba(24,45,49,0)");
-  haze.addColorStop(.40, "rgba(98,150,151,.26)");
-  haze.addColorStop(.53, "rgba(77,132,142,.13)");
-  haze.addColorStop(1, "rgba(66,121,136,0)");
-  ctx.fillStyle = haze; ctx.fillRect(cx - r * 1.2, cy - r * 1.2, r * 2.4, r * 2.4);
-  const globe = ctx.createRadialGradient(cx + r * .23, cy - r * .28, r * .32, cx, cy, r);
-  globe.addColorStop(0, "#060e17"); globe.addColorStop(.82, "#0d1922"); globe.addColorStop(.97, "#182e35"); globe.addColorStop(1, "#618183");
-  ctx.fillStyle = globe; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.clip(); ctx.translate(cx,cy); ctx.rotate(-.3);
-  for (let belt=0; belt<15; belt++) {
-    const latitude=(.15+belt*.055)*r;
-    ctx.strokeStyle=belt%3===1 ? "rgba(115,185,182,.13)" : "rgba(30,64,83,.28)";
-    ctx.lineWidth=r*(.005+rnd()*.009);
-    ctx.beginPath();ctx.ellipse(0,latitude,r*1.22,r*.12,.05,0,Math.PI);ctx.stroke();
-  }
-  ctx.restore();
-  ctx.save();
-  ctx.translate(cx,cy); ctx.rotate(-.38);
-  const ring=ctx.createLinearGradient(-1.9*r,0,1.7*r,0);
-  ring.addColorStop(0,"rgba(97,182,176,.04)"); ring.addColorStop(.23,"rgba(155,201,191,.35)");
-  ring.addColorStop(.53,"rgba(79,117,130,.15)"); ring.addColorStop(1,"rgba(223,196,143,.38)");
-  ctx.strokeStyle=ring;
-  for(const factor of [1.41,1.46,1.48,1.56,1.59]){
-    ctx.lineWidth=factor===1.48?r*.013:Math.max(.65,r*.003);
-    ctx.beginPath();ctx.ellipse(0,0,r*factor,r*factor*.26,0,0,Math.PI);ctx.stroke();
-  }
-  ctx.restore();
-}
-
 function line(ctx, a, b, color, width = 1) {
   ctx.strokeStyle = color; ctx.lineWidth = width;
   ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
@@ -162,7 +75,16 @@ function shadowCone(ctx, point, id) {
   line(ctx,a,e,color,.48); line(ctx,b,c,color,.48); ctx.setLineDash([]);
 }
 
-function station(ctx, people) {
+function station(ctx, people, art) {
+  if(art.naturalWidth) {
+    // Tilt is baked into the radiators, but the pressurized wheel keeps its round collision boundary.
+    ctx.drawImage(art,-32.2,-25.9,64.4,51.8);
+    for(let k=0;k<(people?12:18);k++){
+      const a=k*TAU/28+.04;
+      circle(ctx,Math.cos(a)*18.5,Math.sin(a)*17.7,.32,"#ffda94");
+    }
+    return;
+  }
   const metal = ctx.createLinearGradient(-22,-23,26,22);
   metal.addColorStop(0,"#b8c8c9"); metal.addColorStop(.22,"#5a737d"); metal.addColorStop(.52,"#2f4154"); metal.addColorStop(.80,"#122735"); metal.addColorStop(1,"#62717c");
   circle(ctx,0,0,21,"#0a1622","#7b989f",.66);
@@ -226,6 +148,9 @@ function littleShip(ctx,p,heading,color,size,thrust) {
 }
 
 export function createEchoFlight(canvas, hooks = {}) {
+  const paintSky=makeCampaignBackdrop("echo");
+  const habitat=campaignImage("habitat");
+  const renderBudget=createRenderBudget();
   const ctx=canvas.getContext("2d", {alpha:false});
   if(!ctx) throw new Error("Для карты нужен Canvas 2D");
   const bg=document.createElement("canvas"), bgCtx=bg.getContext("2d");
@@ -241,11 +166,11 @@ export function createEchoFlight(canvas, hooks = {}) {
   function resize() {
     const rect=canvas.getBoundingClientRect();
     const width=Math.max(1,Math.round(rect.width)), height=Math.max(1,Math.round(rect.height));
-    const dpr=clamp(globalThis.devicePixelRatio || 1,1,2);
+    const dpr=renderBudget.pixelRatio(width,height);
     if(w===width&&h===height&&ratio===dpr) return;
     w=width;h=height;ratio=dpr;portrait=w/h<1.05;
     scale=portrait?Math.min(w/210,h/328):Math.min(w/328,h/210);
-    canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);
+    canvas.width=Math.max(1,Math.floor(w*ratio));canvas.height=Math.max(1,Math.floor(h*ratio));
     bg.width=canvas.width;bg.height=canvas.height;
     bgCtx.setTransform(ratio,0,0,ratio,0,0);paintSky(bgCtx,w,h);
   }
@@ -400,7 +325,7 @@ export function createEchoFlight(canvas, hooks = {}) {
         ctx.setLineDash([2,3]);line(ctx,BEACONS[id],GATE,"rgba(179,219,207,.32)",.51);ctx.setLineDash([]);
       }
     }
-    station(ctx,people);
+    station(ctx,people,habitat);
     ctx.restore();
     screenText("КРОМКА",ORIGIN,-Math.max(13,scale*28),"#d3e1df");
     screenText("A · СТВОР",BEACONS.a,Math.max(13,scale*14),MINT);
@@ -466,7 +391,7 @@ export function createEchoFlight(canvas, hooks = {}) {
     if(disposed)return;
     state=nextState||state;
     const dt=clamp(Number.isFinite(elapsed)?elapsed:0,0,.12);
-    resize();clock+=dt;
+    renderBudget.frame();resize();clock+=dt;
     if(previousPhase==="arrived"&&state.phase==="listen") {ship={x:0,y:70};route=[];trail.length=0;}
     if(previousPhase!==state.phase) {
       route=[];pressed.clear();

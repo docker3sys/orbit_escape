@@ -1,3 +1,5 @@
+import { campaignImage, makeCampaignBackdrop } from "./campaign-art.js";
+import { createRenderBudget } from "./mobile-quality.js";
 // The aperture and ship both use normalized screen coordinates, independent of DPI.
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -39,81 +41,23 @@ function bloom(ctx, x, y, r, stops) {
 }
 
 // A small baked radiance field keeps the folds of the aurora stationary against the stars.
-function makeSky(w, h, dpr) {
-  const out = document.createElement("canvas");
-  out.width = Math.round(w*dpr); out.height = Math.round(h*dpr);
-  const ctx = out.getContext("2d");
-  const tint = document.createElement("canvas");
-  tint.width = 420; tint.height = Math.round(clamp(420*h/w, 190, 650));
-  const sm = tint.getContext("2d");
-  const image = sm.createImageData(tint.width, tint.height);
-  const rng = seeded(18435);
-  const noise = Float32Array.from({length:4096}, rng);
-  function value(x,y) {
-    const ix=Math.floor(x), iy=Math.floor(y);
-    let a=x-ix, b=y-iy;
-    a=a*a*(3-2*a);b=b*b*(3-2*b);
-    const j=(iy&63)*64, k=((iy+1)&63)*64, p=ix&63,q=(ix+1)&63;
-    return mix(mix(noise[j+p],noise[j+q],a),mix(noise[k+p],noise[k+q],a),b);
-  }
-  const pw=tint.width, ph=tint.height;
-  for(let j=0;j<ph;j++) {
-    const y=j/ph;
-    for(let i=0;i<pw;i++) {
-      const x=i/pw;
-      const bend=value(x*4.1+12,y*4+24);
-      const n=value(x*11+2*bend,y*12+36+2*bend)*.53+value(x*30+3*bend,y*27+12)*.31+value(x*86,y*79+8)*.16;
-      const ridge=.33+.15*Math.sin(4.7*x-.78)+.058*Math.sin(12.5*x+1.2)+.09*(bend-.5)-.32*x;
-      const depth=y-ridge;
-      const lanes=Math.sin(x*84+bend*8+depth*4)*.11+Math.sin(x*107+depth*11+bend*4)*.065;
-      const curtain=Math.exp(-Math.pow((depth+.033)/(.09+.07*bend),2)) * Math.max(0,n-.19+lanes);
-      const fold=Math.exp(-Math.abs(depth-.015*(n-.5))/.014)*(.22+.65*n);
-      const wing=Math.exp(-Math.pow((y-.79+.42*x+.13*Math.sin(4*x)+.12*bend)/.15,2))*Math.max(0,n-.29);
-      const dark= .75 + .22*Math.cos((x-.46)*3)*Math.cos((y-.45)*3);
-      const g=(j*pw+i)*4;
-      image.data[g]=(4+6*n+curtain*(23+38*x)+fold*12+wing*46)*dark;
-      image.data[g+1]=(9+7*n+curtain*(104-44*x)+fold*69+wing*18)*dark;
-      image.data[g+2]=(20+12*n+curtain*(84+40*x)+fold*49+wing*47)*dark;
-      image.data[g+3]=255;
-    }
-  }
-  sm.putImageData(image,0,0);
+function makeSky(w,h,dpr,paint) {
+  const sky=document.createElement("canvas");
+  sky.width=Math.max(1,Math.round(w*dpr));sky.height=Math.max(1,Math.round(h*dpr));
+  const ctx=sky.getContext("2d");
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.drawImage(tint,0,0,w,h);
-  for(let i=0, n=Math.min(1150,Math.max(310,w*h/580));i<n;i++) {
-    const x=rng()*w,y=rng()*h,v=rng(),r=.3+v*v*.72;
-    ctx.globalAlpha=.25+.68*v;
-    ctx.fillStyle=i%5===0?"#f8d7af":i%4===0?"#9cd6f3":"#e2e9ee";
-    ctx.fillRect(x,y,r,r);
-    if(v>.981) {
-      ctx.globalAlpha=.21;ctx.fillRect(x-2.7,y,6.2,.8);ctx.fillRect(x,y-2.8,.8,6.1);
-    }
-  }
-  ctx.globalAlpha=1;
-  const min=Math.min(w,h),r=min*.55, cx=w*.06-r*.29, cy=h*.96+r*.48;
-  // Foreground ice giant; its rings disappear into a clouded night side.
-  ctx.save(); ctx.translate(cx,cy);ctx.rotate(-.23);
-  for(let k=0;k<15;k++) {
-    const rr=r*(1.22+k*.027);
-    ellipse(ctx,0,0,rr,rr*.21,0,`rgba(178,211,207,${.05+.05*Math.cos(k*1.6)})`,(1+k%2)*.7);
-  }
-  const limb=ctx.createLinearGradient(-r,-r,r*.7,r*.85);
-  limb.addColorStop(0,"#426772");limb.addColorStop(.25,"#203947");
-  limb.addColorStop(.5,"#111f30");limb.addColorStop(1,"#080e1c");
-  ellipse(ctx,0,0,r,r,0,limb);ctx.clip();
-  for(let k=0;k<37;k++) {
-    const cy=-r+k*r*.055;
-    ctx.beginPath();ctx.moveTo(-r,cy);
-    ctx.bezierCurveTo(-r*.38,cy-r*.24,r*.46,cy+r*.13,r,cy-r*.16);
-    ctx.strokeStyle=k%5===0?"rgba(119,163,167,.085)":"rgba(4,11,20,.09)";
-    ctx.lineWidth=r*(.012+.012*rng());ctx.stroke();
-  }
-  ctx.restore();
-  ellipse(ctx,cx,cy,r+1.2,r+1.2,0,"rgba(144,218,209,.34)",1.6,3.44,5.11);
-  return out;
+  paint(ctx,w,h);
+  return sky;
 }
 
-function drawObservatory(ctx, x, y, scale, t, awake, people, still) {
+function drawObservatory(ctx, x, y, scale, t, awake, people, still, art) {
+  if(art.naturalWidth){
+    const plate=awake?(people?1:2):0, width=226*scale, height=width*294/512;
+    ctx.save();ctx.translate(x,y);ctx.rotate(-.09);
+    ctx.drawImage(art,0,294*plate,512,294,-width*.5,-height*.63,width,height);
+    ctx.restore();
+    return;
+  }
   // Three petal mirrors share a truss and a receiver; the local crew lights
   // the warm habitation windows, while the relay ending lights a second dish.
   ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);ctx.rotate(-.12);
@@ -195,6 +139,9 @@ function drawShuttle(ctx,x,y,size,angle,people) {
 }
 
 export function createLastFlight(canvas, hooks={}) {
+  const collar=campaignImage("collar"), mirrors=campaignImage("observatory");
+  const paintSky=makeCampaignBackdrop("last");
+  const renderBudget=createRenderBudget();
   const ctx=canvas.getContext("2d",{alpha:false});
   if(!ctx)throw new Error("Canvas 2D unavailable");
   let w=0,h=0,ratio=0,sky=null,clock=0,elapsed=0,active=true;
@@ -207,11 +154,11 @@ export function createLastFlight(canvas, hooks={}) {
 
   function resize() {
     const rect=canvas.getBoundingClientRect(), nextW=Math.max(1,Math.round(rect.width)), nextH=Math.max(1,Math.round(rect.height));
-    const nextRatio=clamp(window.devicePixelRatio||1,1,2);
+    const nextRatio=renderBudget.pixelRatio(nextW,nextH);
     if(w===nextW&&h===nextH&&ratio===nextRatio)return;
     w=nextW;h=nextH;ratio=nextRatio;
-    canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);
-    sky=makeSky(w,h,ratio);
+    canvas.width=Math.max(1,Math.floor(w*ratio));canvas.height=Math.max(1,Math.floor(h*ratio));
+    sky=makeSky(w,h,ratio,paintSky);
   }
   function steer(x,y) {
     if(!Number.isFinite(x)||!Number.isFinite(y))return;
@@ -298,6 +245,11 @@ export function createLastFlight(canvas, hooks={}) {
       const dx=Math.cos(a),dy=Math.sin(a),sx=dx*r,sy=dy*ry;
       path(ctx,[[sx*1.02,sy*1.02],[sx*1.35,sy*1.35]],k%2===0?mid:"#789092",k%2===0?2:1);
     }
+    if(collar.naturalWidth) {
+      ctx.save();ctx.scale(1,ry/r);ctx.rotate(rot*.33);
+      ctx.drawImage(collar,-r*1.26,-r*1.26,r*2.52,r*2.52);
+      ctx.restore();
+    }
     const pulse=still?.5:(.5+.5*Math.sin(clock*2.2));
     ctx.globalAlpha=.24+.34*pulse;
     path(ctx,[[-r*.23,0],[-r*.08,0]],mid,1);path(ctx,[[r*.08,0],[r*.23,0]],mid,1);
@@ -330,10 +282,10 @@ export function createLastFlight(canvas, hooks={}) {
       const a=aclock-.46;
       ellipse(ctx,cx,cy+scale*9,scale*136,scale*46,-.21,"rgba(170,213,194,.16)",1);
       if(Math.sin(a)<0)drawShuttle(ctx,cx+Math.cos(a)*scale*130,cy+Math.sin(a)*scale*40-Math.cos(a)*scale*24,scale*.45,a+Math.PI/2,choice==="people");
-      drawObservatory(ctx,cx,cy,scale,clock,true,choice==="people",reduced);
+      drawObservatory(ctx,cx,cy,scale,clock,true,choice==="people",reduced,mirrors);
       if(Math.sin(a)>=0)drawShuttle(ctx,cx+Math.cos(a)*scale*130,cy+Math.sin(a)*scale*40-Math.cos(a)*scale*24,scale*.45,a+Math.PI/2,choice==="people");
     } else {
-      drawObservatory(ctx,cx,cy,scale,clock,false,false,reduced);
+      drawObservatory(ctx,cx,cy,scale,clock,false,false,reduced,mirrors);
       for(let k=0;k<3;k++) {
         const u=(clock*.18+k/3)%1;
         const frac=reduced?(k+1)/4:u;
@@ -343,7 +295,7 @@ export function createLastFlight(canvas, hooks={}) {
   }
   function render(rawDt,state={}) {
     if(!active)return;
-    resize();
+    renderBudget.frame();resize();
     const dt=clamp(Number.isFinite(rawDt)?rawDt:0,0,.10);
     const nextMode=state.phase||"tune",leg=clamp(Math.floor(Number(state.leg)||0),0,2);
     if(mode!==nextMode||section!==leg) {

@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+// Production installs must retain the signer of the public 1.1.0 APK.
+def signingInputs = ['ORBIT_STORE_FILE', 'ORBIT_STORE_PASSWORD', 'ORBIT_KEY_ALIAS', 'ORBIT_KEY_PASSWORD']
+        .collectEntries { name -> [(name): providers.environmentVariable(name).orNull] }
+def hasSigningInputs = signingInputs.values().any { it }
+if (hasSigningInputs) {
+    if (!signingInputs.values().every { it }) {
+        throw new GradleException('Set all four ORBIT signing environment variables or leave them all unset for an unsigned build.')
+    }
+    def keyStore = java.security.KeyStore.getInstance(file(signingInputs.ORBIT_STORE_FILE), signingInputs.ORBIT_STORE_PASSWORD.toCharArray())
+    def cert = keyStore.getCertificate(signingInputs.ORBIT_KEY_ALIAS)
+    def sha256 = cert ? java.security.MessageDigest.getInstance('SHA-256').digest(cert.encoded).encodeHex().toString() : ''
+    if (sha256 != 'e667e50cc622082aed87a11ed0bc344287d730c8f231f87e44d23486a5e467b4') {
+        throw new GradleException('This key does not match the certificate on the public Orbit Escape 1.1.0 APK.')
+    }
+}
+
 android {
     namespace = "com.orbitescape.game"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +23,8 @@ android {
         applicationId "com.orbitescape.game"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 3
+        versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,23 +32,36 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    buildTypes {
-        preview {
-            initWith debug
-            applicationIdSuffix '.preview'
-            versionNameSuffix '-quiet-beacon.4'
-            matchingFallbacks = ['debug']
+    signingConfigs {
+        if (hasSigningInputs) {
+            production {
+                storeFile file(signingInputs.ORBIT_STORE_FILE)
+                storePassword signingInputs.ORBIT_STORE_PASSWORD
+                keyAlias signingInputs.ORBIT_KEY_ALIAS
+                keyPassword signingInputs.ORBIT_KEY_PASSWORD
+            }
         }
+    }
+
+    buildTypes {
         release {
+            if (hasSigningInputs) signingConfig signingConfigs.production
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        preview {
+            initWith release
+            applicationIdSuffix '.preview'
+            versionNameSuffix '-preview.5'
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
         }
     }
 }
 
 androidComponents {
     onVariants(selector().withBuildType("preview")) { variant ->
-        variant.outputs.each { output -> output.versionCode.set(4) }
+        variant.outputs.each { output -> output.versionCode.set(5) }
     }
 }
 

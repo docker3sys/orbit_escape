@@ -1,0 +1,32 @@
+#careerStart {background:#d2e5de;color:#152723;border:1px solid #b1c8bf}
+#courierFrame {position:fixed;top:0;left:0;width:100%;height:100%;border:0;z-index:12;display:block;background:#070d15}
+.graphics-choice {display:flex;align-items:center;justify-content:space-between;gap:14px;color:#cfdbd9;font-weight:600}
+.graphics-choice select {min-height:44px;max-width:68%;border:1px solid #63747a;border-radius:7px;padding:8px 10px;color:#eef2e8;background:#19262c;font:inherit}
+.art-credits {color:#afc1bf;font-size:14px}
+.art-credits summary,.contract-dialog summary {cursor:pointer;padding:10px 0}
+#handDialog .art-credits p {font-size:13px;line-height:1.45;margin:6px 0}
+.lite-contracts {position:absolute;z-index:4;top:73px;right:16px;min-height:44px;border-radius:8px;color:#111e21;background:#bfe1d1;padding:9px 14px;cursor:pointer}
+.lite-contracts[hidden] {display:none}
+#game[data-career] .hud--right:not(.is-open) ~ .solar-signal {bottom:23%}
+.contract-dialog {width:360px;max-width:calc(100vw - 28px);max-height:calc(100vh - 24px);margin:auto;padding:18px 20px;overflow:auto;box-sizing:border-box;background:#111c22;color:#ecf4ef;border:1px solid #546b6b;border-radius:13px;font:15px/1.45 system-ui,sans-serif}
+.contract-dialog header,.contract-actions {display:flex;align-items:center;justify-content:space-between;gap:10px}
+.contract-dialog h2 {font-size:21px;margin:0}
+.contract-dialog h3 {font-size:24px;line-height:1.15;margin:16px 0 7px}
+.contract-dialog p {margin:6px 0 12px}
+.contract-dialog button {background:#23353d;color:#e7f4ee;border:1px solid #59766e;min-height:44px;padding:8px 12px;border-radius:7px;cursor:pointer}
+.contract-dialog header button {font-size:22px;min-width:44px}
+.contract-dialog button:disabled {opacity:.52}
+.contract-actions {justify-content:flex-start;flex-wrap:wrap}
+.contract-dialog [data-courier=work] {background:#c1ddca;color:#15271d}
+.contract-dialog::backdrop {background:rgba(2,6,10,.69)}
+.courier-account,.contract-dialog [role=status] {color:#a9c6b7;font-size:14px}
+.contract-dialog details {margin-top:13px;border-top:1px solid #354849}
+.contract-dialog [data-courier-ref=upgrades] {display:grid;gap:5px}
+.contract-dialog [data-courier-ref=upgrades] button {text-align:left}
+@media (pointer:fine) and (min-width:761px) {.lite-contracts {right:auto;left:14px;top:195px}}
+@media (max-height:440px) and (orientation:landscape) {.lite-contracts {top:56px}}
+@media (max-width:700px) and (orientation:portrait) {
+  .hangar-actions {display:grid;grid-template-columns:1fr 1fr}
+  .hangar-actions [id$=Start]:not(#careerStart):not(#solarStart) {grid-column:1/-1}
+  .hangar-actions button {min-height:46px}
+}

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#07121e" />
+  <meta name="description" content="Твой корабль. Твой маршрут. Исследуй Солнечную систему, выполняй рейсы и улучшай корабль в Orbit Escape." />
+  <title>Orbit Escape — Солнечный курьер</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="../webview-layout.css" />
+</head>
+<body>
+<main id="game" aria-label="Orbit Escape">
+  <canvas id="space" aria-label="Трёхмерный полёт по Солнечной системе"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="labels" id="labels" aria-hidden="true"></div>
+  <div class="reticle flight-only" aria-hidden="true"><i></i></div>
+  <div id="lookZone" class="look-zone touch-only flight-only" aria-label="Область обзора: проведи пальцем"></div>
+
+  <section class="launch" id="launchPanel" aria-labelledby="launchTitle">
+    <div class="launch__copy">
+      <p class="eyebrow"><span class="signal-dot"></span> Солнечный курьер</p>
+      <h1 id="launchTitle">Orbit <span>Escape</span></h1>
+      <p class="launch__tagline">Твой маршрут среди планет.</p>
+      <p class="launch__description">Бери рейсы, открывай новые миры<br class="wide-break" /> и собирай корабль под свой стиль полёта.</p>
+      <button id="launchButton" class="button button--primary launch__button" type="button"><span>Начать полёт</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
+      <button id="exitLaunch" class="courier-exit" type="button">В ангар</button>
+    </div>
+    <div class="launch__visual" aria-hidden="true">
+      <div class="launch__orbit launch__orbit--outer"></div><div class="launch__orbit launch__orbit--inner"></div>
+      <div class="launch__star launch__star--one"></div><div class="launch__star launch__star--two"></div>
+      <img class="launch__ship" src="./assets/ship.png" alt="" />
+      <div class="launch__visual-caption"><span>БОРТОВАЯ СИСТЕМА</span><strong>Готова к вылету <b>●</b></strong></div>
+    </div>
+    <p class="launch__footer">Без интернета · Прогресс сохраняется на устройстве</p>
+  </section>
+
+  <header class="flight-header flight-only">
+    <section class="mission-card" aria-label="Текущее задание">
+      <div class="mission-card__meta"><span class="eyebrow">Текущий рейс</span><span id="missionCounter" class="mission-counter">01 / 12</span></div>
+      <strong id="missionTitle">Первый выход на орбиту</strong>
+      <p id="missionHint">Выбери цель и отправляйся навстречу открытиям.</p>
+    </section>
+    <nav class="flight-tools" aria-label="Меню полёта">
+      <button id="navButton" class="tool-button" type="button" aria-label="Навигация" title="Навигация"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></svg><span>Навигация</span></button>
+      <button id="contractButton" class="tool-button" type="button" aria-label="Рейсы и улучшения" title="Рейсы и улучшения"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2M9 10h6M9 14h6M9 18h3"/></svg><span>Рейсы</span></button>
+      <button id="pauseButton" class="tool-button tool-button--square" type="button" aria-label="Пауза" title="Пауза"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg></button>
+    </nav>
+  </header>
+
+  <aside class="resources flight-only" aria-label="Состояние корабля">
+    <div class="credits"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7l9-5Z"/><path d="m12 6 5 3v6l-5 3-5-3V9l5-3Z"/></svg><strong id="creditsReadout">0</strong><span>кр.</span></div>
+    <div class="resource-row"><span>Щит</span><div class="resource-track"><i id="shieldBar" class="resource-fill resource-fill--shield" style="width:100%"></i></div></div>
+    <div class="resource-row"><span>Энергия</span><div class="resource-track"><i id="energyBar" class="resource-fill resource-fill--energy" style="width:100%"></i></div></div>
+    <div class="resource-row resource-row--scan"><span>Сканер</span><div class="resource-track"><i id="scannerBar" class="resource-fill resource-fill--scan" style="width:0%"></i></div></div>
+  </aside>
+  <aside class="flight-readouts flight-only" aria-label="Полётные данные">
+    <div class="readout readout--speed"><span>Скорость</span><strong id="speedReadout">0</strong></div>
+    <div class="readout readout--target"><span>Цель</span><strong id="targetReadout">Свободный полёт</strong></div>
+    <div class="readout readout--distance"><span>Дистанция</span><strong id="distanceReadout">—</strong></div>
+  </aside>
+  <div id="statusReadout" class="flight-status flight-only" role="status">Ручное управление</div>
+
+  <div class="joystick-wrap touch-only flight-only">
+    <div id="joystick" class="joystick" role="group" aria-label="Джойстик движения"><span class="joystick__cross joystick__cross--horizontal"></span><span class="joystick__cross joystick__cross--vertical"></span><span id="joystickKnob" class="joystick__knob"></span></div>
+    <span class="joystick-caption">ДВИЖЕНИЕ</span>
+  </div>
+  <div class="flight-actions flight-only">
+    <button id="actionButton" class="button action-button" type="button">Действие</button>
+    <div class="flight-actions__row touch-only">
+      <button id="brakeButton" class="round-button round-button--brake" type="button" aria-label="Торможение, удерживай"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg><span>Стоп</span></button>
+      <button id="boostButton" class="round-button round-button--boost" type="button" aria-label="Форсаж, удерживай"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 2-9 12h6l-1 8 9-12h-6l1-8Z"/></svg><span>Форсаж</span></button>
+    </div>
+  </div>
+  <aside id="toast" class="toast" role="status" hidden><span class="toast__dot"></span><div><strong id="toastTitle"></strong><p id="toastText"></p></div></aside>
+
+  <section id="navPanel" class="overlay" role="dialog" aria-modal="true" aria-labelledby="navTitle" hidden>
+    <div class="panel panel--navigation">
+      <header class="panel__header"><div><p class="eyebrow">Прокладывай свой путь</p><h2 id="navTitle">Солнечная система</h2></div><button id="closeNav" class="close-button" type="button" aria-label="Закрыть навигацию"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+      <div class="panel__scroll"><p class="panel__intro">Выбери мир для следующего перелёта.</p><div class="target-list" id="targetList"></div><p id="targetInfo" class="target-info">Солнечная система ждёт твоих открытий.</p></div>
+      <footer class="panel__footer panel__footer--nav"><div class="switch-row"><button id="orbitToggle" class="chip" type="button" aria-pressed="false">Орбиты</button><button id="labelsToggle" class="chip" type="button" aria-pressed="false">Метки планет</button><button id="jumpButton" class="chip" type="button" hidden>Маршрут</button></div><button id="navigateButton" class="button button--primary" type="button">Построить маршрут <span aria-hidden="true">↗</span></button></footer>
+    </div>
+  </section>
+
+  <section id="contractPanel" class="overlay" role="dialog" aria-modal="true" aria-labelledby="contractsTitle" hidden>
+    <div class="panel panel--contracts">
+      <header class="panel__header"><div><p class="eyebrow">Следующая глава полёта</p><h2 id="contractsTitle">Рейсы и корабль</h2></div><button id="closeContract" class="close-button" type="button" aria-label="Закрыть рейсы"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+      <div class="panel__scroll contract-layout">
+        <section class="contract-card" aria-labelledby="contractTitle"><div class="contract-card__top"><span class="section-label">Доступный рейс</span><span id="contractReward" class="reward-badge">+ 120 кр.</span></div><h3 id="contractTitle">Первый рейс</h3><p id="contractDescription">Корабль готов к отправлению.</p><button id="acceptMission" class="button button--primary" type="button">Принять рейс</button></section>
+        <section class="hangar" aria-label="Улучшения корабля"><div class="section-heading"><h3>Твой корабль</h3><span>АНГАР</span></div><p class="muted small">Каждый рейс открывает новые возможности.</p><div id="upgradeList" class="upgrade-list"></div></section>
+      </div>
+    </div>
+  </section>
+
+  <section id="pausePanel" class="overlay" role="dialog" aria-modal="true" aria-labelledby="pauseTitle" hidden>
+    <div class="panel panel--pause"><p class="eyebrow"><span class="signal-dot"></span> Корабль в безопасности</p><h2 id="pauseTitle">Выдохни, капитан.</h2><p class="panel__intro">Космос подождёт. Продолжим, когда будешь готов.</p><div class="pause-actions"><button id="resumeButton" class="button button--primary" type="button">Продолжить полёт <span aria-hidden="true">→</span></button><button id="settingsButton" class="button button--secondary" type="button">Настройки</button><button id="helpButton" class="button button--secondary" type="button">Как играть</button><button id="exitPause" class="button button--secondary" type="button">В ангар</button><button id="newGameButton" class="button button--quiet" type="button">Новая экспедиция</button></div><p class="pause-note">Прогресс сохраняется автоматически.</p></div>
+  </section>
+
+  <section id="settingsPanel" class="overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+    <div class="panel panel--settings"><header class="panel__header"><div><p class="eyebrow">Твой комфорт</p><h2 id="settingsTitle">Настройки</h2></div><button id="closeSettings" class="close-button" type="button" aria-label="Закрыть настройки"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+      <div class="panel__scroll settings-list">
+        <label class="setting-row" for="qualitySelect"><span><strong>Качество графики</strong><small>Снизь, если полёт теряет плавность.</small></span><select id="qualitySelect"><option value="low">Экономно</option><option value="auto" selected>Авто</option><option value="high">Красиво</option></select></label>
+        <label class="setting-row setting-row--range" for="sensitivityInput"><span><strong>Чувствительность обзора</strong><small>Медленно <span class="range-end">Быстро</span></small></span><input id="sensitivityInput" type="range" min="0.5" max="2" value="1" step="0.1" /></label>
+        <label class="setting-row" for="invertToggle"><span><strong>Инверсия обзора</strong><small>Меняет направление по вертикали.</small></span><input class="switch" id="invertToggle" type="checkbox" /></label>
+        <label class="setting-row" for="soundToggle"><span><strong>Звук</strong><small>Сигналы корабля и событий.</small></span><input class="switch" id="soundToggle" type="checkbox" checked /></label>
+        <label class="setting-row" for="hapticsToggle"><span><strong>Виброотклик</strong><small>Короткий отклик на важные события.</small></span><input class="switch" id="hapticsToggle" type="checkbox" checked /></label>
+      </div><footer class="panel__footer"><p class="small muted">Настройки сохраняются на этом устройстве.</p></footer>
+    </div>
+  </section>
+
+  <section id="helpPanel" class="overlay" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+    <div class="panel panel--help"><header class="panel__header"><div><p class="eyebrow">Освойся за минуту</p><h2 id="helpTitle">Как играть</h2></div><button id="closeHelp" class="close-button" type="button" aria-label="Закрыть помощь"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+      <div class="panel__scroll help-content">
+        <div class="help-goal"><span class="help-number">01</span><div><h3>Возьми рейс</h3><p>В меню рейсов выбери задание. Доставка, исследования и открытия приносят кредиты для улучшения корабля.</p></div></div>
+        <div class="help-goal"><span class="help-number">02</span><div><h3>Построй маршрут</h3><p>Открой навигацию, выбери планету и включи маршрут. Автопилот поможет с дальним перелётом.</p></div></div>
+        <div class="help-goal"><span class="help-number">03</span><div><h3>Следуй подсказке рейса</h3><p>У цели появится действие. Исследуй окрестности, получай награды и возвращайся за следующим заданием.</p></div></div>
+        <div class="help-controls"><section><h3>На телефоне</h3><p><b>Слева</b> — джойстик движения.<br /><b>Справа</b> — веди пальцем для обзора.<br /><b>Форсаж / Стоп</b> — удерживай кнопку.</p></section><section><h3>На компьютере</h3><p><kbd>W A S D</kbd> движение · зажми мышь — обзор<br /><kbd>Shift</kbd> форсаж · <kbd>Space</kbd> тормоз<br /><kbd>E</kbd> действие · <kbd>M</kbd> навигация · <kbd>Esc</kbd> пауза</p></section></div>
+        <p class="help-comfort">Отпусти джойстик, чтобы плавно замедлиться. Не спеши — у рейсов нет таймера.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="achievement" class="overlay overlay--achievement" role="dialog" aria-modal="true" aria-labelledby="achievementTitle" hidden><div class="panel achievement-card"><span class="achievement-symbol" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="m32 5 7 17 19 2-14 13 4 19-16-10-16 10 4-19L6 24l19-2L32 5Z"/></svg></span><p class="eyebrow">Новая веха</p><h2 id="achievementTitle">Первые открытия</h2><p id="achievementText">У каждой экспедиции есть начало.</p><button id="dismissAchievement" class="button button--primary" type="button">Дальше — больше <span aria-hidden="true">→</span></button></div></section>
+  <section id="loadingPanel" class="loading-screen" role="status"><div class="loading-orbit" aria-hidden="true"><span></span></div><p class="eyebrow">Orbit Escape</p><strong>Готовим корабль к вылету</strong><p id="loadingStatus">Загружаем Солнечную систему…</p></section>
+</main>
+<script type="module" src="./bootstrap.mjs"></script>
+</body>
+</html>
+

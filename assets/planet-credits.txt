@@ -1,0 +1,26 @@
+Orbit Escape • источники изображений
+
+Земля — NASA Earth Observatory, Blue Marble: Next Generation, June 2004.
+Цветная карта с затенением рельефа уменьшена для мобильного экрана.
+https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-topography/
+
+Ночное освещение Земли — NASA Earth Observatory, Black Marble 2016. Карта построена
+по ночным наблюдениям VIIRS спутника Suomi NPP (NASA/NOAA). Для игры выделены
+яркие тёплые источники света и уменьшен фоновый сигнал.
+https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps/
+
+Луна — NASA's Scientific Visualization Studio, Ernie Wright, CGI Moon Kit.
+Цвет: LRO/LROC WAC, NASA/GSFC/Arizona State University; рельеф: LRO/LOLA, NASA/GSFC.
+Из лунной карты высот рассчитаны нормали поверхности с усилением рельефа ×2.
+Использованы lroc_color_2k.jpg и ldem_4.tif.
+https://svs.gsfc.nasa.gov/4720/
+
+Текстуры Солнца, Меркурия, Венеры (облачный покров), Марса, Юпитера, Сатурна,
+Урана, Нептуна, облаков Земли и колец Сатурна — Solar System Scope.
+Solar System Scope предоставляет текстуры по лицензии Creative Commons Attribution
+4.0 International (CC BY 4.0). В игре используются уменьшенные, перекодированные
+версии. Облака переведены в оттенки серого; из карты колец выделен радиальный
+профиль цвета и прозрачности. Освещение, атмосферное рассеяние и тени вычисляются
+игрой и отличаются от исходных изображений.
+https://www.solarsystemscope.com/textures/
+https://creativecommons.org/licenses/by/4.0/

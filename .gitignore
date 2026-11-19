@@ -11,3 +11,8 @@ screenshots/
 
 *.log
 
+# Android signing credentials
+*.jks
+*.keystore
+*.p12
+keystore.properties

@@ -3,10 +3,20 @@
   "appName": "Orbit Escape",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "errorPath": "unsupported.html"
   },
   "android": {
-    "allowMixedContent": true,
-    "backgroundColor": "#070D15"
+    "allowMixedContent": false,
+    "backgroundColor": "#070D15",
+    "webContentsDebuggingEnabled": false,
+    "initialFocus": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "hidden": true,
+      "insetsHandling": "css",
+      "style": "DARK"
+    }
   }
 }
