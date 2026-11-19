@@ -40,7 +40,7 @@
   touch-action:none; cursor:crosshair; outline:none;
 }
 .echo-screen[data-phase=arrived] canvas {cursor:default}
-.echo-toast {position:absolute; z-index:2; top:12px; left:50%; transform:translateX(-50%); pointer-events:none; color:#e6f9ef; width:max-content; max-width:calc(100% - 22px); text-align:center; padding:7px 13px; background:#0c2428f0; border:1px solid #4b827c; box-shadow:0px 4px 22px #0005; border-radius:6px; font-size:13px}
+.echo-toast {position:absolute; z-index:2; top:12px; left:50%; transform:translateX(-50%); pointer-events:none; color:#e6f9ef; width:max-content; max-width:calc(100% - 22px); text-align:center; padding:7px 13px; background:rgba(12,36,40,0.9412); border:1px solid #4b827c; box-shadow:0px 4px 22px rgba(0,0,0,0.3333); border-radius:6px; font-size:13px}
 .echo-dock {
   padding:clamp(13px,2.5vh,24px) max(var(--echo-gutter),env(safe-area-inset-right)) max(clamp(14px,2.7vh,25px),env(safe-area-inset-bottom)) max(var(--echo-gutter),env(safe-area-inset-left));
   border-top:1px solid #395257; background:linear-gradient(103deg,#0c1c22,#0b171a 58%,#132020);
@@ -49,7 +49,7 @@
 }
 .echo-objective {min-width:0;color:var(--echo-ink)}
 .echo-eyeline {display:flex; align-items:center; gap:8px; color:var(--echo-a); font:650 10px/1.25 var(--echo-mono); letter-spacing:.1em; text-transform:uppercase}
-.echo-status-dot {display:block; width:6px; height:6px; border-radius:50%; background:var(--echo-a); box-shadow:0 0 8px #75dfbf77}
+.echo-status-dot {display:block; width:6px; height:6px; border-radius:50%; background:var(--echo-a); box-shadow:0 0 8px rgba(117,223,191,0.4667)}
 .echo-objective h2 {font-size:clamp(18px,2.15vw,30px); font-weight:625; letter-spacing:-.035em; margin:4px 0 2px; line-height:1.12}
 .echo-objective p {margin:5px 0 0; max-width:57ch; color:#d0dcda; font-size:clamp(13px,1.25vw,16px); line-height:1.4}
 .echo-receiver {display:grid; gap:8px; align-self:center}
@@ -82,7 +82,7 @@
 .echo-endnav {display:flex;gap:16px;justify-content:space-between}
 .echo-screen .echo-endnav button {min-height:44px;padding:3px 2px;font-size:13px;color:#d0e2db}
 .echo-endnav svg {width:14px;height:14px}
-.echo-screen .echo-record:not(:disabled) {box-shadow:0 0 18px #76dcad28}
+.echo-screen .echo-record:not(:disabled) {box-shadow:0 0 18px rgba(118,220,173,0.1569)}
 .echo-dock .echo-stick {display:none}
 
 @media(max-width:670px) and (orientation:portrait) {

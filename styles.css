@@ -52,7 +52,7 @@ button {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 45%, transparent 0 52%, rgba(0, 0, 0, 0.24) 100%),
+    radial-gradient(circle at 50% 45%, transparent 52%, rgba(0, 0, 0, 0.24) 100%),
     linear-gradient(180deg, rgba(255, 202, 106, 0.05), transparent 26%, rgba(110, 231, 255, 0.04));
 }
 
@@ -419,10 +419,10 @@ button {
     top: var(--solar-edge-top);
     min-height: 46px;
     padding: 0 14px;
-    border: 1px solid #b1cccd51;
+    border: 1px solid rgba(177,204,205,0.3176);
     border-radius: 24px;
     color: #e6f4f1;
-    background: #0a171fe0;
+    background: rgba(10,23,31,0.8784);
     font-size: 14px;
     font-weight: 620;
     line-height: 1;
@@ -454,7 +454,7 @@ button {
   .hud--left .readout strong { font-size: 12px; font-weight: 500; color: #c9dbdb; }
   #game #targetReadout { grid-row: 1; grid-column: 1 / -1; font-size: 16px; font-weight: 650; color: #f0f7f4; }
   #game #distanceReadout { grid-row: 2; grid-column: 1; }
-  #game #speedReadout { grid-row: 2; grid-column: 2; padding-left: 9px; border-left: 1px solid #afcec166; }
+  #game #speedReadout { grid-row: 2; grid-column: 2; padding-left: 9px; border-left: 1px solid rgba(175,206,193,0.4); }
   #game .hud--right {
     z-index: 6;
     overflow: visible;
@@ -471,10 +471,10 @@ button {
     width: min(320px, calc(100vw - 28px));
     margin-top: 6px;
     padding: 12px;
-    border: 1px solid #91b0b65e;
+    border: 1px solid rgba(145,176,182,0.3686);
     border-radius: 16px;
-    background: #0a161ff5;
-    box-shadow: 0 14px 40px #0009;
+    background: rgba(10,22,31,0.9608);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.6);
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -512,14 +512,14 @@ button {
     width: var(--solar-stick-size);
     height: var(--solar-stick-size);
     border-radius: 50%;
-    border: 1px solid #a2c2be69;
-    background: radial-gradient(circle, #0a212877 38%, #12272e80 63%, #25414c55);
+    border: 1px solid rgba(162,194,190,0.4118);
+    background: radial-gradient(circle, rgba(10,33,40,0.4667) 38%, rgba(18,39,46,0.502) 63%, rgba(37,65,76,0.3333));
   }
   .solar-stick::before {
     content: '';
     position: absolute;
     inset: 10%;
-    border: 1px dashed #c1ddd32c;
+    border: 1px dashed rgba(193,221,211,0.1725);
     border-radius: 50%;
   }
   .solar-stick::after {
@@ -528,7 +528,7 @@ button {
     top: 8%;
     width: 7px;
     height: 7px;
-    border: solid #c6e2d9aa;
+    border: solid rgba(198,226,217,0.6667);
     border-width: 1.5px 1.5px 0 0;
     transform: rotate(-45deg);
   }
@@ -537,12 +537,12 @@ button {
     width: 42%;
     height: 42%;
     border-radius: 50%;
-    border: 1px solid #c9dfd890;
-    background: radial-gradient(circle at 43% 36%,#55717de3,#243c47eb 80%);
+    border: 1px solid rgba(201,223,216,0.5647);
+    background: radial-gradient(circle at 43% 36%,rgba(85,113,125,0.8902),rgba(36,60,71,0.9216) 80%);
     transform: translate(var(--sx, 0), var(--sy, 0));
   }
   .solar-stick:not(.is-engaged) .solar-stick-knob { transition: transform 140ms ease-out; }
-  .solar-stick.is-engaged { border-color: #c7ece2bf; }
+  .solar-stick.is-engaged { border-color: rgba(199,236,226,0.749); }
   .solar-warp {
     display: grid;
     justify-items: center;
@@ -550,15 +550,15 @@ button {
     gap: 1px;
     width: 83px;
     height: 73px;
-    border: 1px solid #d0d8af92;
+    border: 1px solid rgba(208,216,175,0.5725);
     border-radius: 28px;
-    background: linear-gradient(145deg, #344039dd, #152227de);
+    background: linear-gradient(145deg, rgba(52,64,57,0.8667), rgba(21,34,39,0.8706));
     color: #f4f1d1;
     font-size: 12px;
     font-weight: 640;
   }
   .solar-warp svg { width: 31px; height: 25px; }
-  .solar-warp:active { background: #505946e6; transform: translateY(1px); }
+  .solar-warp:active { background: rgba(80,89,70,0.902); transform: translateY(1px); }
   .solar-touch-hint {
     position: absolute;
     z-index: 3;
@@ -603,7 +603,7 @@ button {
   padding: 5px 11px;
   border-left: 2px solid #a1cfbc;
   color: #e1f4e9;
-  background: #081317db;
+  background: rgba(8,19,23,0.8588);
   font-size: 13px;
   line-height: 1.35;
   text-align: left;

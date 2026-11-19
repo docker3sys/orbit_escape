@@ -53,9 +53,9 @@ input[type=range]{min-height:48px}
 
 /* Pointer controls share a centred origin at every device scale. */
 .joystick__knob{left:50%;top:50%;transform:translate(-50%,-50%)}
-.round-button--boost.held{background:#336b68;box-shadow:0 0 22px #6bdec150}
+.round-button--boost.held{background:#336b68;box-shadow:0 0 22px rgba(107,222,193,0.3137)}
 .round-button--brake.held{background:#725844}
-body.damaged .vignette{box-shadow:inset 0 0 90px #d54b5a80}
+body.damaged .vignette{box-shadow:inset 0 0 90px rgba(213,75,90,0.502)}
 body.modal-open .flight-header,body.modal-open .resources,body.modal-open .flight-actions,body.modal-open .joystick-wrap{pointer-events:none}
 
 .courier-exit { display:block; margin:8px 0 0; padding:10px 14px; min-height:44px; color:#f4fcff; border:1px solid #778d95; border-radius:8px; background:#11252e; font:600 14px/1 system-ui,sans-serif; cursor:pointer }

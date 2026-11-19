@@ -31,13 +31,13 @@
 @media(max-height:540px) and (orientation:landscape){#hangar{padding:16px 5vw}.hangar-intro{margin:17px 0 0}.hangar-intro h1{font-size:clamp(47px,14vh,85px);margin:12px 0}.hangar-intro p{margin-bottom:10px;font-size:15px}.hangar-actions button{min-height:38px;padding:8px 14px}.solar-menu{bottom:8px}}
 @media(prefers-reduced-motion:reduce){.hangar-actions button,.solar-menu{transition:none}}
 
-.solar-help{position:absolute;right:14px;bottom:max(16px,env(safe-area-inset-bottom));z-index:6;font:13px/1.4 system-ui,sans-serif;color:#f5f0e8;background:#101720e8;border:1px solid #596068;border-radius:6px;max-width:min(340px,85vw)}
+.solar-help{position:absolute;right:14px;bottom:max(16px,env(safe-area-inset-bottom));z-index:6;font:13px/1.4 system-ui,sans-serif;color:#f5f0e8;background:rgba(16,23,32,0.9098);border:1px solid #596068;border-radius:6px;max-width:min(340px,85vw)}
 .solar-help summary{padding:10px 12px;cursor:pointer;min-height:38px}
 .solar-help p{margin:4px 13px 13px}
 @media(max-width:600px){.solar-help{right:8px;bottom:6px}.solar-menu{left:8px;bottom:6px}}
 
 .hangar-top{display:flex;align-items:center;justify-content:space-between;gap:20px}
-.chapter-picker{display:flex;gap:4px;max-width:100%;padding:4px;border:1px solid #71838170;border-radius:7px;background:#090e16b8}
+.chapter-picker{display:flex;gap:4px;max-width:100%;padding:4px;border:1px solid rgba(113,131,129,0.4392);border-radius:7px;background:rgba(9,14,22,0.7216)}
 .chapter-picker button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 14px;cursor:pointer;background:transparent;color:#d2d7d7;border-radius:4px;font:600 14px/1.2 system-ui,sans-serif}
 .chapter-picker small{font:11px/1 ui-monospace,monospace;color:#c2a58b}
 .chapter-picker button[aria-pressed=true]{background:#e7e6dc;color:#172429}
@@ -45,7 +45,7 @@
 .chapter-number b{font-weight:inherit}
 #echoStart{background:#98e0d5;color:#102625}#echoStart span{margin-left:10px}
 #hangar [hidden]{display:none}
-#hangar[data-chapter=echo]{background-image:linear-gradient(90deg,#040910ad,rgba(5,9,14,.36) 33%,transparent 65%),linear-gradient(0deg,#02070a91,transparent 39%),url("./assets/echo-cover.jpg")}
+#hangar[data-chapter=echo]{background-image:linear-gradient(90deg,rgba(4,9,16,0.6784),rgba(5,9,14,.36) 33%,transparent 65%),linear-gradient(0deg,rgba(2,7,10,0.5686),transparent 39%),url("./assets/echo-cover.jpg")}
 #hangar[data-chapter=echo] .chapter-number,#hangar[data-chapter=echo] h1 span{color:#9de5d7}
 #hangar[data-chapter=echo] .chapter-number>span{background:#9de5d7}
 @media(max-width:700px) and (orientation:portrait){
@@ -59,7 +59,7 @@
 }
 
 #lastStart{background:#d5c5f4;color:#251d35}#lastStart span{margin-left:10px}
-#hangar[data-chapter=last]{background-image:linear-gradient(90deg,#050910a8,rgba(7,11,19,.26) 39%,transparent 66%),linear-gradient(0deg,#04050d9c,transparent 40%),url("./assets/last-cover.jpg")}
+#hangar[data-chapter=last]{background-image:linear-gradient(90deg,rgba(5,9,16,0.6588),rgba(7,11,19,.26) 39%,transparent 66%),linear-gradient(0deg,rgba(4,5,13,0.6118),transparent 40%),url("./assets/last-cover.jpg")}
 #hangar[data-chapter=last] .chapter-number,#hangar[data-chapter=last] h1 span{color:#d5c5f4}
 #hangar[data-chapter=last] .chapter-number>span{background:#cbb4ef}
 @media(max-width:700px) and (orientation:portrait){
@@ -72,8 +72,8 @@
 
 .hangar-mast { display:flex; align-items:center; gap:clamp(15px,3vw,38px) }
 #handSwitch, #handDialog button { font:600 14px/1.2 system-ui,sans-serif; cursor:pointer }
-#handSwitch { min-height:44px; padding:8px 13px; border:1px solid #929eac70; border-radius:6px; background:#0c131bca; color:#e1e7e9 }
-#handDialog { width:min(380px,calc(100% - 32px)); max-height:calc(100dvh - 24px); overflow:auto; margin:auto; box-sizing:border-box; padding:22px; border:1px solid #657579; border-radius:14px; background:#111a20; color:#f1f4ee; box-shadow:0 20px 80px #000b; font:16px/1.5 system-ui,sans-serif }
+#handSwitch { min-height:44px; padding:8px 13px; border:1px solid rgba(146,158,172,0.4392); border-radius:6px; background:rgba(12,19,27,0.7922); color:#e1e7e9 }
+#handDialog { width:min(380px,calc(100% - 32px)); max-height:calc(100dvh - 24px); overflow:auto; margin:auto; box-sizing:border-box; padding:22px; border:1px solid #657579; border-radius:14px; background:#111a20; color:#f1f4ee; box-shadow:0 20px 80px rgba(0,0,0,0.7333); font:16px/1.5 system-ui,sans-serif }
 #handDialog::backdrop { background:rgba(4,8,12,.78) }
 #handDialog form { display:grid; gap:16px }
 #handDialog header { display:flex; align-items:center; justify-content:space-between; gap:16px }
@@ -116,7 +116,7 @@
 }
 /* A pale ring passes outside the reticle when the drive folds space. */
 #game .solar-fold { position:absolute; inset:0; z-index:1; pointer-events:none; opacity:0;
- background:radial-gradient(ellipse at center,transparent 38%,#8bbbc22e 62%,#95e6ee47 71%,#091a3c45 82%,transparent) }
+ background:radial-gradient(ellipse at center,transparent 38%,rgba(139,187,194,0.1804) 62%,rgba(149,230,238,0.2784) 71%,rgba(9,26,60,0.2706) 82%,transparent) }
 @media (prefers-reduced-motion:no-preference) {
  #game .solar-fold.is-jumping { animation:solar-drive-fold .76s ease-out both }
  @keyframes solar-drive-fold { 0% { transform:scale(.68); opacity:0 } 24% { opacity:.62 } 100% { transform:scale(1.35); opacity:0 } }
