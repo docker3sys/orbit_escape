@@ -2,8 +2,8 @@
 param(
     [Parameter(Mandatory = $true)] [string] $Keystore,
     [Parameter(Mandatory = $true)] [string] $Alias,
-    [string] $Apk = (Join-Path $PSScriptRoot "Orbit-Escape-1.2.0-unsigned.apk"),
-    [string] $Output = (Join-Path $PSScriptRoot "Orbit-Escape-1.2.0-release.apk"),
+    [string] $Apk = (Join-Path $PSScriptRoot "Orbit-Escape-1.3.0-unsigned.apk"),
+    [string] $Output = (Join-Path $PSScriptRoot "Orbit-Escape-1.3.0-release.apk"),
     [string] $BuildTools
 )
 

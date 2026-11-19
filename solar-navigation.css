@@ -1,0 +1,44 @@
+#solarRoutePanel .nav-actions, #solarRoutePanel .nav-optics {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 0 0 auto;
+}
+#solarRoutePanel .nav-actions { margin: 0 0 8px; }
+#solarRoutePanel .nav-actions button { min-height: 44px; width: 100%; cursor: pointer; }
+#solarRoutePanel #jumpButton { display: block; color: #122321; background: #bed4c9; }
+#solarRoutePanel .nav-optics { margin: 8px 0 3px; }
+.nav-optics label { min-width: 0; font-size: 11px; color: #b2c3c8; }
+.nav-optics select { display: block; width: 100%; min-height: 44px; margin-top: 3px; border: 1px solid #46545c;
+  border-radius: 6px; padding: 4px 5px; color: #e9eeec; background: #17242c; font: 600 13px system-ui, sans-serif; }
+.nav-epoch { color: #abb8bc; margin: 7px 0 0; font-size: 11px; line-height: 1.3; }
+#solarRoutePanel .target-list { min-height: 100px; }
+#solarRoutePanel { overflow-y: auto; }
+@media (pointer: coarse), (max-width: 760px) {
+  #solarRoutePanel { max-height: calc(100vh - 76px); max-height: calc(100dvh - 76px); }
+  #solarRoutePanel .target-list { max-height: 35vh; max-height: 35dvh; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  #solarRoutePanel { display: block; }
+  #solarRoutePanel .target-list { max-height: 122px; }
+}
+#game #solarRoutePanel[hidden] {display:none}
+
+#hangar[data-chapter=solar] {
+  background-color: #030506;
+  background-image: linear-gradient(90deg,rgba(3,5,6,.91),rgba(3,5,6,.26) 47%,transparent 72%),url("./assets/lunar-hangar.jpg");
+  background-repeat: no-repeat; background-size: cover,auto 144%; background-position: center,90% 36%;
+}
+#hangar[data-chapter=solar] #solarStart {order:-1; background:#c5dfda; color:#142624; border-color:transparent; grid-column:1/-1}
+#hangar[data-chapter=solar] .hangar-intro h1 {font-size:clamp(56px,min(9vw,14vh),135px)}
+#hangar[data-chapter=solar] .chapter-number,#hangar[data-chapter=solar] h1 span {color:#a5d4cc}
+#hangar[data-chapter=solar] .chapter-number>span {background:#a5d4cc}
+@media (max-width:700px) and (orientation:portrait) {
+  #hangar .chapter-picker {display:grid;grid-template-columns:.76fr 1fr 1fr 1.05fr; width:100%;box-sizing:border-box;}
+  #hangar .chapter-picker button {min-width:0; padding:5px 4px; line-height:1.15; flex:1; min-height:44px; font-size:12px}
+  #hangar .chapter-picker small {display:none}
+  #hangar[data-chapter=solar] {background-image:linear-gradient(0deg,#070b10 8%,rgba(7,11,16,.95) 28%,rgba(7,11,16,.48) 42%,transparent 65%),url("./assets/lunar-hangar.jpg");
+    background-position:center,center 0; background-size:cover,auto 90%;}
+  #hangar[data-chapter=solar] .hangar-intro h1 {font-size:56px;font-size:clamp(50px,12.8vw,82px)}
+  #hangar[data-chapter=solar] #careerStart {grid-column:1/-1}
+}
+@media (orientation:landscape) and (max-height:440px) {
+  #hangar[data-chapter=solar] .hangar-intro h1 { font-size:43px }
+}

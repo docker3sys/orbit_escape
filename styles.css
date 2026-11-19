@@ -56,6 +56,10 @@ button {
     linear-gradient(180deg, rgba(255, 202, 106, 0.05), transparent 26%, rgba(110, 231, 255, 0.04));
 }
 
+#game .vignette {
+  background: radial-gradient(ellipse at center, transparent 62%, rgba(0, 0, 0, .08) 100%);
+}
+
 .reticle {
   position: fixed;
   top: 50%;
@@ -500,6 +504,37 @@ button {
     pointer-events: none;
   }
   html[data-hand="left"] .solar-flight-deck { flex-direction: row-reverse; }
+  .solar-thrusters {
+    display:flex;
+    align-items:center;
+  }
+  html[data-hand="left"] .solar-thrusters { flex-direction:row-reverse; }
+  .solar-lift-pad {
+    display:flex;
+    flex-direction:column;
+    margin:0 7px;
+    border:1px solid rgba(155,184,181,.44);
+    border-radius:15px;
+    background:rgba(13,27,34,.79);
+    overflow:hidden;
+    pointer-events:auto;
+  }
+  .solar-lift-pad button {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:46px;
+    height:44px;
+    background:transparent;
+    color:#d1e1df;
+    touch-action:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .solar-lift-pad button + button { border-top:1px solid rgba(155,184,181,.3); }
+  .solar-lift-pad button.is-firing { background:#34545a; color:#fff; }
+  .solar-lift-pad svg { width:21px; height:21px; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  #solarLiftToggle { flex:none; margin-top:6px; }
+  #solarLiftToggle[aria-pressed="true"]::before { content:"✓ "; }
   .solar-stick, .solar-warp {
     pointer-events: auto;
     touch-action: none;
@@ -612,3 +647,7 @@ button {
 @media (max-height: 490px) and (orientation: landscape) {
   .solar-signal { max-width: calc(100% - 236px); }
 }
+
+#game:not([data-career]) .reticle,
+#game[data-career] .solar-lift-pad,
+#game[data-career] #solarLiftToggle { display:none; }

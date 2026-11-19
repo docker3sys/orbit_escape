@@ -21,6 +21,7 @@ const solarView = document.querySelector("#game");
 const start = document.querySelector("#beaconStart");
 const free = document.querySelector("#solarStart");
 const nextStart = document.querySelector("#echoStart");
+const sandboxTab = document.querySelector("#chapterSolar");
 const beaconTab = document.querySelector("#chapterBeacon");
 const echoTab = document.querySelector("#chapterEcho");
 const lastTab = document.querySelector("#chapterLast");
@@ -98,7 +99,7 @@ syncSoundButtons();
 let checkpoint = readCheckpoint();
 let otherFlightActive = false;
 const inherited = nextChoice();
-let chapter = "beacon";
+let chapter = checkpoint ? "beacon" : "solar";
 if (checkpoint?.stage === "complete" || echoProgress(inherited)) chapter = "echo";
 if (echoProgress(inherited)?.phase === "arrived" || lastProgress(inherited)) chapter = "last";
 
@@ -135,20 +136,22 @@ function menu(message = "") {
   status.textContent = message;
   status.hidden = !message;
   const choice = nextChoice();
+  const showSolar = chapter === "solar";
   const showBeacon = chapter === "beacon";
   const showEcho = chapter === "echo";
   const showLast = chapter === "last";
   const savedEcho = showEcho && echoProgress(choice);
   const savedLast = showLast && lastProgress(choice);
   hangar.dataset.chapter = chapter;
-  for (const [tab, selected] of [[beaconTab,showBeacon],[echoTab,showEcho],[lastTab,showLast]]) {
+  for (const [tab, selected] of [[sandboxTab,showSolar],[beaconTab,showBeacon],[echoTab,showEcho],[lastTab,showLast]]) {
     tab.setAttribute("aria-pressed",String(selected));
   }
   const tab = showBeacon ? beaconTab : showEcho ? echoTab : lastTab;
-  document.querySelector("#chapterNumber").textContent = "Экспедиция " + tab.querySelector("small").textContent;
-  const titles = {beacon:"Тихий<br>маяк",echo:"Два<br>голоса",last:"Обратный<br>свет"};
+  document.querySelector("#chapterNumber").textContent = showSolar ? "Солнечная система" : "Экспедиция " + tab.querySelector("small").textContent;
+  const titles = {solar:"Свободный<br>полёт",beacon:"Тихий<br>маяк",echo:"Два<br>голоса",last:"Обратный<br>свет"};
   document.querySelector("#chapterTitle").innerHTML = titles[chapter] + "<span>.</span>";
   let brief = "У Voyager 1 услышали ответ из пустого сектора. Найди источник сигнала.";
+  if (showSolar) brief = "Стартуй с орбиты Земли. Куда лететь дальше — решаешь ты.";
   if (showEcho) {
     brief = choice === "people"
       ? "Со «Створа» отзывается знакомый механик. На его частоту накладывается второй позывной."
@@ -160,6 +163,7 @@ function menu(message = "") {
     if (savedLast?.phase === "home") brief = "Обсерватория снова в эфире. Из её окон видно, как к станции подходит следующий рейс.";
   }
   document.querySelector("#chapterBrief").textContent = brief;
+  free.textContent = showSolar ? "Войти в свободный полёт" : "Свободный полёт";
   nextStart.hidden = !showEcho;
   lastStart.hidden = !showLast;
   start.hidden = !showBeacon;
@@ -358,6 +362,7 @@ function begin(reset=false) {
   }
 }
 
+sandboxTab.addEventListener("click",()=>chooseChapter("solar"));
 beaconTab.addEventListener("click",()=>chooseChapter("beacon"));
 echoTab.addEventListener("click",()=>chooseChapter("echo"));
 lastTab.addEventListener("click",()=>chooseChapter("last"));
@@ -439,7 +444,7 @@ async function openSolar(visit, career = false) {
     signal:document.querySelector("#solarSignal"),
     log:document.querySelector("#solarListening"),
   });
-  radio.start(muted);
+  radio.start(muted, career);
   try {
     solarView.hidden=false;
     if (career) rasterSolar(readCourierFlight() || {});

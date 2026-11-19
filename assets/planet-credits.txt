@@ -24,3 +24,5 @@ Solar System Scope предоставляет текстуры по лиценз
 игрой и отличаются от исходных изображений.
 https://www.solarsystemscope.com/textures/
 https://creativecommons.org/licenses/by/4.0/
+
+Hangar photograph, cropped for different screens: NASA, Apollo 11, AS11-44-6552. https://eol.jsc.nasa.gov/SearchPhotos/photo.pl?frame=6552&mission=AS11&roll=44

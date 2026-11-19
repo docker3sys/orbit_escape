@@ -16,12 +16,12 @@ function readProgress() {
 }
 
 function createReceiverSound() {
-  let context, main, hum, body, filter, air;
+  let context, main, hum, noise, body, filter, air;
   let audible = false;
   let suspendTimer = 0;
   const voices = new Set();
 
-  function open() {
+  function open(driveEnabled) {
     if (!context) {
       const Audio = window.AudioContext || window.webkitAudioContext;
       if (!Audio) return;
@@ -29,6 +29,15 @@ function createReceiverSound() {
       main = context.createGain();
       main.gain.value = 0;
       main.connect(context.destination);
+    }
+    // The sandbox is quiet until a transmission arrives. The lightweight courier cockpit
+    // keeps its existing engine, and releases its continuous sources when returning to free flight.
+    if (!driveEnabled && hum) {
+      hum.stop(); noise.stop();
+      hum.disconnect(); noise.disconnect(); body.disconnect(); filter.disconnect(); air.disconnect();
+      hum = noise = body = filter = air = null;
+    }
+    if (driveEnabled && !hum) {
       body = context.createGain();
       body.gain.value = .036;
       body.connect(main);
@@ -46,7 +55,7 @@ function createReceiverSound() {
         // Cross both ends of the loop at silence.
         samples[i] = smooth * Math.min(1, i / 700, (length - 1 - i) / 700);
       }
-      const noise = context.createBufferSource();
+      noise = context.createBufferSource();
       filter = context.createBiquadFilter();
       filter.type = "lowpass";
       filter.frequency.value = 270;
@@ -99,7 +108,7 @@ function createReceiverSound() {
   return {
     open, hush,
     update(speed) {
-      if (!audible || !context) return;
+      if (!audible || !hum) return;
       const now = context.currentTime;
       hum.frequency.setTargetAtTime(65.41 + 33 * speed, now, .32);
       body.gain.setTargetAtTime(.036 + .039 * speed, now, .28);
@@ -132,7 +141,7 @@ export function createSolarRadio({telemetry, signal, log}) {
   fold.setAttribute("aria-hidden", "true");
   sky.querySelector(".vignette").before(fold);
 
-  let running = false, muted = false, timer = 0;
+  let running = false, muted = false, engineEnabled = false, timer = 0;
   let progress = readProgress();
   let listened = 0, lastTick = 0, lastJump = null;
   let captionUntil = 0, listening = false;
@@ -149,7 +158,7 @@ export function createSolarRadio({telemetry, signal, log}) {
     log.textContent = station ? "Эфир · " + station.clue : "Эфир · Земля, Сатурн и Voyager 1 снова на связи.";
   }
   function openSound() {
-    if (!muted) { try { sound.open(); } catch {} }
+    if (!muted) { try { sound.open(engineEnabled); } catch {} }
   }
   function tick() {
     const now = performance.now();
@@ -159,14 +168,14 @@ export function createSolarRadio({telemetry, signal, log}) {
     const state = telemetry();
     if (!state) return;
     if (lastJump !== null && lastJump !== state.jump) {
-      sound.jump();
+      if (engineEnabled) sound.jump();
       fold.classList.remove("is-jumping");
       void fold.offsetWidth;
       fold.classList.add("is-jumping");
       listened = 0;
     }
     lastJump = state.jump;
-    sound.update(Math.max(0, Math.min(1, state.speed || 0)));
+    if (engineEnabled) sound.update(Math.max(0, Math.min(1, state.speed || 0)));
     if (signal && !signal.hidden && now >= captionUntil) show("", 0);
     const station = stations[progress];
     const inRange = station && state.target === station.key && state.near >= .68;
@@ -192,7 +201,8 @@ export function createSolarRadio({telemetry, signal, log}) {
   }
   describe();
   return {
-    start(value) {
+    start(value, withEngine = engineEnabled) {
+      engineEnabled = withEngine;
       muted = value;
       if (running) return;
       running = true;

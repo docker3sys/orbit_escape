@@ -1,4 +1,5 @@
 // The raster flight deck drives the very same contracts, rewards and saves as 3D career.
+import {convertCourierFlight} from "./courier-flight-frame.js";
 import {createCampaign, MISSIONS, UPGRADES} from "./courier/gameplay.mjs";
 
 const flightKey = "orbit-escape.flight.v2";
@@ -9,7 +10,7 @@ export function readCourierFlight() {
     const s = JSON.parse(localStorage.getItem(flightKey));
     if (Array.isArray(s?.position) && s.position.length === 3 &&
         s.position.every(n => Number.isFinite(n) && Math.abs(n) < 1e14) &&
-        Number.isFinite(s.yaw) && Number.isFinite(s.pitch)) return s;
+        Number.isFinite(s.yaw) && Number.isFinite(s.pitch)) return convertCourierFlight(s,"live");
   } catch {}
   return null;
 }
@@ -39,7 +40,7 @@ export function openCourierDeck(pilot) {
     data.energy = Math.max(0, Math.min(100, energy));
     career.save();
     try {
-      localStorage.setItem(flightKey, JSON.stringify({...pilot.getFlightSnapshot(), shield:data.shield, energy:data.energy}));
+      localStorage.setItem(flightKey, JSON.stringify({...convertCourierFlight(pilot.getFlightSnapshot(),"legacy"), shield:data.shield, energy:data.energy}));
     } catch {}
     savedAt = performance.now();
   }

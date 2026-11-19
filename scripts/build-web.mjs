@@ -24,7 +24,8 @@ async function buildPage(folder, entry) {
       builder.onResolve({filter:/three\.module(?:\.min)?\.js$/}, () => ({path:three}));
     }}],
   });
-  const policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'";
+  const network = folder ? "" : " https://raw.githubusercontent.com/docker3sys/orbit_escape/release/android-1.3/ephemerides/horizons.json";
+  const policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'" + network + "; frame-src 'self'; object-src 'none'; base-uri 'self'";
   const page = html.replace("<head>", "<head>\n    <meta http-equiv=\"Content-Security-Policy\" content=\"" + policy + "\" />")
     .replace(script, '<script defer src="./game.js"></script>');
   await writeFile(path.join(destination, "index.html"), page);

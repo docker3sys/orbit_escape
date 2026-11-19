@@ -1,0 +1,21 @@
+Orbit Escape — небо свободного полёта
+
+Звёзды. D. Hoffleit & W. H. Warren Jr. (1991), Bright Star Catalogue,
+5th Revised Edition. Таблица NASA HEASARC BSC5P. Игра использует
+6 001 запись со звёздной величиной V ≤ 6,15: координаты эпохи J2000,
+видимую величину V и цветовой индекс B−V. Нестационарность переменных
+звёзд и собственное движение от эпохи каталога не моделируются.
+https://heasarc.gsfc.nasa.gov/W3Browse/catalog/bsc5p.html
+
+Млечный Путь. NASA’s Scientific Visualization Studio / Ernie Wright,
+Deep Star Maps 2020. По данным Gaia DR2, Hipparcos-2, Tycho-2 и других
+каталогов. Использован слой milkyway_2020_4k_print.jpg без ярких звёзд.
+Для телефона он перепроецирован в шесть граней, уменьшен и
+скорректирован по яркости и насыщенности.
+https://svs.gsfc.nasa.gov/4851/
+
+Туманности. M42 (Орион) и M8 (Лагуна) показаны слабыми
+поверхностными свечениями в каталоговых направлениях и угловых
+размерах. Их форма приближённая. Источник астрометрии — SEDS:
+https://messier.lamost.org/seds/seds.org/messier/en/m/m042.html
+https://messier.lamost.org/seds/seds.org/messier/en/m/m008.html

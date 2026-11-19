@@ -1,0 +1,11 @@
+Пояс астероидов • Orbit Escape
+
+Орбиты 2 200 пронумерованных объектов главного пояса: NASA/JPL Small-Body Database, SBDB Query API. Класс MBA, сортировка по spkid, эпоха JD 2461200.5 TDB. В игре элементы распространяются по невозмущённым эллипсам Кеплера. Для неизвестных диаметров оценка по абсолютной величине H и принятому альбедо 0,12. Для 243 Иды использованы отдельные элементы повышенной точности (SBDB API). Приближённая орбита Дактиля иллюстрирует наблюдавшийся масштаб расстояния до Иды. Точная фаза спутника неизвестна.
+https://ssd-api.jpl.nasa.gov/doc/sbdb_query.html
+https://ssd-api.jpl.nasa.gov/sbdb.api?sstr=243&full-prec=true&phys-par=1
+https://science.nasa.gov/solar-system/asteroids/243-ida/
+
+Форма 243 Иды: Thomas, P.C. et al. (2021), Small Body Optical Shape Models Bundle V1.0, NASA PDS, urn:nasa:pds:ast-sat.thomas.shape-models::1.0. https://doi.org/10.26033/g5e0-kh52
+Модель из CelestiaContent (CC0-1.0) преобразована в компактную треугольную сетку. Альбедо Иды — ItzImcool (2025), CelestiaContent, CC BY 4.0. Изображение поставляется без изменений. https://creativecommons.org/licenses/by/4.0/
+https://github.com/CelestiaProject/CelestiaContent/tree/457e4eebf1b37ca428d5719178c49408fb3282bf/models
+https://github.com/CelestiaProject/CelestiaContent/blob/457e4eebf1b37ca428d5719178c49408fb3282bf/textures/medres/ida.jpg

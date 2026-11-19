@@ -1,9 +1,14 @@
 import { createGameRenderer } from "./game-renderer.js";
 import { createRenderBudget } from "./mobile-quality.js";
-import { planetSpecs, spacecraftSpecs } from "./solar-catalog.js";
+import { createOrbitalClock, worldCoordinates, orbitPaths } from "./solar-system-clock.js";
+import { getSolarEphemeris } from "./solar-ephemeris.js";
+import { planetSpecs as planetCatalog, spacecraftSpecs, galacticDirection } from "./solar-catalog.js";
 import * as THREE from "./vendor/three.module.js";
+import { SHIP_LENGTH_KM, HULL_CLEARANCE_KM, arrivalRangeKm, approachSpeedLimit, greenwichSiderealAngle } from './solar-scale.js';
 import { createPlanetSurfaces } from "./planet-surface.js";
+import { buildBeltScene } from "./solar-belt.js";
 import { createSolarObservatory } from "./solar-observatory.js";
+import { createStellarSky } from "./solar-sky-webgl.js";
 import { createSolarTouch } from "./solar-touch.js";
 
 const canvas = document.querySelector("#space");
@@ -31,9 +36,10 @@ renderer.setDrawingBufferSize(innerWidth, innerHeight, renderBudget.pixelRatio(i
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.2;
-const surfaces = createPlanetSurfaces(renderer);
+const surfaces = createPlanetSurfaces(renderer, undefined, {closeFlight:true});
 
 const scene = new THREE.Scene();
+scene.add(surfaces.sky);
 
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 1e-7, 2e19);
 camera.position.set(0, 9, 126);
@@ -44,8 +50,6 @@ let solarActive = false;
 let solarFrame = 0;
 let retired = false;
 let nextHud = 0;
-const raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2(0, 0);
 const keys = new Set();
 const compactSolar = matchMedia("(pointer: coarse), (max-width: 760px)");
 const routeButton = document.querySelector("#solarRoute");
@@ -65,10 +69,8 @@ const world = new THREE.Group();
 scene.add(world);
 
 const spinningObjects = [];
-const anchoredBackgrounds = [];
 const labelEntries = [];
 const orbitLines = [];
-const visibilityAids = [];
 const targetButtons = new Map();
 const targetObjects = [];
 
@@ -79,7 +81,6 @@ let yaw = 0;
 let pitch = 0;
 let roll = 0;
 let velocity = new THREE.Vector3();
-let targetPulse = 0;
 let renderProbeDone = !new URLSearchParams(location.search).has("render-probe");
 let superCruise = false;
 
@@ -89,6 +90,13 @@ const up = new THREE.Vector3();
 const tempVec = new THREE.Vector3();
 const tempVec2 = new THREE.Vector3();
 const tempQuat = new THREE.Quaternion();
+const flightFrame = new THREE.Quaternion();
+const frameInverse = new THREE.Quaternion();
+const horizonMatrix = new THREE.Matrix4();
+const horizonDirection = new THREE.Vector3();
+const fixedCenter = new THREE.Vector3();
+const fixedEye = new THREE.Vector3();
+const priorSpin = new THREE.Quaternion(), spinDifference = new THREE.Quaternion();
 const tempEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
 const AU_KM = 149_597_870.7;
@@ -98,14 +106,14 @@ const METERS_TO_UNITS = KM_TO_UNITS / 1000;
 const SUN_RADIUS_KM = 695_700;
 const LIGHT_SPEED_KM_S = 299_792.458;
 const LY_KM = 9_460_730_472_580.8;
-const SHIP_LENGTH_KM = 0.109;
-const SHIP_RADIUS_KM = SHIP_LENGTH_KM / 2;
+
 const FORWARD_CRUISE_MULTIPLIER = 30;
 const MILKY_WAY_RADIUS_LY = 52_850;
 const SUN_TO_GALACTIC_CENTER_LY = 26_660;
-const EPHEMERIS_EPOCH = "2026-05-19 00:00 TDB";
-const ASTEROID_BELT_INNER_AU = 2.05;
-const ASTEROID_BELT_OUTER_AU = 3.35;
+const orbitalClock = createOrbitalClock();
+const orbitalObjects = [];
+const clockEye = [0,0,0];
+let beltScene;
 const gameKeyCodes = new Set([
   "KeyW",
   "KeyA",
@@ -124,35 +132,34 @@ const gameKeyCodes = new Set([
   "ShiftRight",
 ]);
 
-applyRealScaleSpecs();
+const initialPositions = getSolarEphemeris(Date.now()).positionsAU;
+const planetSpecs = planetCatalog.map(spec => ({...spec, radius:kmToWorld(spec.trueRadiusKm), positionAU:initialPositions[spec.key]}));
 
 const galacticTargets = [
   {
     key: "galactic-center",
     name: "Центр Млечного Пути",
     color: 0xffd487,
-    positionKm: new THREE.Vector3(-SUN_TO_GALACTIC_CENTER_LY * LY_KM, 0, 0),
+    positionKm: new THREE.Vector3(...galacticDirection).multiplyScalar(SUN_TO_GALACTIC_CENTER_LY * LY_KM),
     approachDistanceKm: 2 * LY_KM,
   },
   {
     key: "milky-way-rim",
     name: "Край Млечного Пути",
     color: 0xa8d7ff,
-    positionKm: new THREE.Vector3((MILKY_WAY_RADIUS_LY - SUN_TO_GALACTIC_CENTER_LY) * LY_KM, 0, 0),
+    positionKm: new THREE.Vector3(...galacticDirection).multiplyScalar(-(MILKY_WAY_RADIUS_LY - SUN_TO_GALACTIC_CENTER_LY) * LY_KM),
     approachDistanceKm: 2 * LY_KM,
   },
 ];
 
 initLights();
-initStars();
+scene.add(createStellarSky());
 initSolarSystem();
 initAsteroidBelt();
 initSpacecraft();
 initGalaxyScaleTargets();
 initMilkyWayOutline();
-initNebulaBackdrop();
 scene.traverse(object => {
-  if (object.userData.followCamera) anchoredBackgrounds.push(object);
   if (object.userData.rotationSpeed || object.userData.orbitSpeed) spinningObjects.push(object);
 });
 initUi();
@@ -169,107 +176,6 @@ function initLights() {
   const rimLight = new THREE.DirectionalLight(0x8ec7ff, 1.1);
   rimLight.position.set(-400, 180, 600);
   scene.add(rimLight);
-}
-
-// Camera-relative sky particles must still lie behind astronomical objects at every scale.
-function putBehindBodies(object) {
-  object.renderOrder = -100;
-  object.material.depthTest = true;
-  object.material.onBeforeCompile = shader => {
-    shader.fragmentShader = shader.fragmentShader.replace("#include <logdepthbuf_fragment>",
-      "#include <logdepthbuf_fragment>\n gl_FragDepth = 1.0;");
-  };
-}
-
-function initStars() {
-  const starGeometry = new THREE.BufferGeometry();
-  const starCount = 6200;
-  const positions = new Float32Array(starCount * 3);
-  const colors = new Float32Array(starCount * 3);
-  const color = new THREE.Color();
-
-  for (let i = 0; i < starCount; i += 1) {
-    const radius = THREE.MathUtils.randFloat(900, 7800);
-    const theta = THREE.MathUtils.randFloat(0, Math.PI * 2);
-    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
-    const index = i * 3;
-
-    positions[index] = radius * Math.sin(phi) * Math.cos(theta);
-    positions[index + 1] = radius * Math.cos(phi);
-    positions[index + 2] = radius * Math.sin(phi) * Math.sin(theta);
-
-    const starType = Math.random();
-    if (starType > 0.92) {
-      color.set("#ffd8a8");
-    } else if (starType < 0.08) {
-      color.set("#a9d7ff");
-    } else {
-      color.set("#ffffff");
-    }
-
-    const intensity = THREE.MathUtils.randFloat(0.55, 1.0);
-    colors[index] = color.r * intensity;
-    colors[index + 1] = color.g * intensity;
-    colors[index + 2] = color.b * intensity;
-  }
-
-  starGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  starGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-  const starField = new THREE.Points(
-    starGeometry,
-    new THREE.PointsMaterial({
-      size: 1.9,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.9,
-      depthWrite: false,
-    }),
-  );
-
-  putBehindBodies(starField);
-  starField.userData.followCamera = true;
-  scene.add(starField);
-
-  const dustGeometry = new THREE.BufferGeometry();
-  const dustCount = 1300;
-  const dustPositions = new Float32Array(dustCount * 3);
-  const dustColors = new Float32Array(dustCount * 3);
-
-  for (let i = 0; i < dustCount; i += 1) {
-    const radius = THREE.MathUtils.randFloat(420, 4200);
-    const theta = THREE.MathUtils.randFloat(0, Math.PI * 2);
-    const y = THREE.MathUtils.randFloatSpread(180);
-    const index = i * 3;
-
-    dustPositions[index] = Math.cos(theta) * radius;
-    dustPositions[index + 1] = y;
-    dustPositions[index + 2] = Math.sin(theta) * radius;
-
-    color.set(Math.random() > 0.55 ? "#ffca6a" : "#6ee7ff");
-    dustColors[index] = color.r * 0.75;
-    dustColors[index + 1] = color.g * 0.75;
-    dustColors[index + 2] = color.b * 0.75;
-  }
-
-  dustGeometry.setAttribute("position", new THREE.BufferAttribute(dustPositions, 3));
-  dustGeometry.setAttribute("color", new THREE.BufferAttribute(dustColors, 3));
-
-  const dust = new THREE.Points(
-    dustGeometry,
-    new THREE.PointsMaterial({
-      size: 3.8,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.22,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
-  );
-
-  putBehindBodies(dust);
-  dust.userData.followCamera = true;
-  scene.add(dust);
 }
 
 function initSolarSystem() {
@@ -316,28 +222,24 @@ function initSolarSystem() {
     planet.userData.frameExtent = spec.radius * (spec.rings === true ? 2.30 : spec.rings ? 1.87 : 1.04);
     planet.userData.approachDistance = spec.radius * (spec.rings ? 5.7 : 3.45) + SHIP_LENGTH_KM;
     world.add(planet);
-    addOrbit(spec.orbitAU * AU_TO_UNITS, spec.colors[1]);
     addLabel(spec.name, planet, new THREE.Color(spec.colors[1]).getHex());
     addTarget(spec.name, planet, spec.key);
 
     planet.userData.spec = spec;
+    orbitalObjects.push([spec.key,planet]);
 
     if (spec.moon) {
-      // Keep the lunar orbit independent of Earth's daily spin.
-      const moonPivot = new THREE.Group();
-      moonPivot.position.copy(planet.position);
-      moonPivot.userData.rotationSpeed = .000004;
-      world.add(moonPivot);
       const moonRadius = kmToWorld(1737.4);
       const light = planet.position.clone().normalize().negate();
       const moon = surfaces.create("moon",moonRadius,light);
       moon.userData.approachVector = approachFromSun(light);
       moon.rotation.y = Math.atan2(moon.userData.approachVector.x,moon.userData.approachVector.z)-Math.PI/2;
-      moon.position.copy(auToWorld([0.000062379024, 0.002397512493, 0.000192102199]));
+      moon.position.copy(auToWorld(initialPositions.moon));
       moon.userData.trueRadius = moonRadius;
       moon.userData.frameExtent = moonRadius;
       moon.userData.approachDistance = moon.userData.trueRadius * 3.45 + SHIP_LENGTH_KM;
-      moonPivot.add(moon);
+      world.add(moon);
+      orbitalObjects.push(["moon",moon]);
       addLabel("Луна", moon, 0xd7d6cf);
       addTarget("Луна", moon, "moon");
     }
@@ -350,44 +252,9 @@ function initSolarSystem() {
 }
 
 function initAsteroidBelt() {
-  const geometry = new THREE.IcosahedronGeometry(1, 0);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xb0a08a,
-    roughness: 0.92,
-    metalness: 0.05,
-  });
-  const belt = new THREE.InstancedMesh(geometry, material, 560);
-  const matrix = new THREE.Matrix4();
-  const position = new THREE.Vector3();
-  const quaternion = new THREE.Quaternion();
-  const scale = new THREE.Vector3();
-  const euler = new THREE.Euler();
-
-  for (let i = 0; i < 560; i += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = THREE.MathUtils.randFloat(ASTEROID_BELT_INNER_AU, ASTEROID_BELT_OUTER_AU) * AU_TO_UNITS;
-    const height = THREE.MathUtils.randFloatSpread(0.18);
-    const size = kmToWorld(THREE.MathUtils.randFloat(8, 86));
-
-    position.set(Math.cos(angle) * radius, height, Math.sin(angle) * radius);
-    euler.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    quaternion.setFromEuler(euler);
-    scale.set(size, size * THREE.MathUtils.randFloat(0.55, 1.2), size);
-    matrix.compose(position, quaternion, scale);
-    belt.setMatrixAt(i, matrix);
-  }
-
-  belt.instanceMatrix.needsUpdate = true;
-  belt.name = "Пояс астероидов";
-  world.add(belt);
-
-  const beltMarker = new THREE.Group();
-  beltMarker.position.set(((ASTEROID_BELT_INNER_AU + ASTEROID_BELT_OUTER_AU) / 2) * AU_TO_UNITS, 0.02, 0);
-  beltMarker.name = "Пояс астероидов";
-  beltMarker.userData.approachDistance = 0.22;
-  world.add(beltMarker);
-  addLabel("Пояс астероидов", beltMarker, 0xffca6a);
-  addTarget("Пояс астероидов", beltMarker, "asteroid-belt");
+  beltScene = buildBeltScene(THREE,world);
+  addLabel("243 Ида",beltScene.primary,0xbaaea0);
+  addTarget("Пояс астероидов · Ида",beltScene.primary,"asteroid-belt");
 }
 
 function initSpacecraft() {
@@ -481,10 +348,15 @@ function initGalaxyScaleTargets() {
 function initMilkyWayOutline() {
   const center = galacticTargets.find((target) => target.key === "galactic-center").positionKm;
   const radius = MILKY_WAY_RADIUS_LY * LY_KM;
+  // IAU north Galactic pole (J2000 192.85948°, +27.12825°), in the game's ecliptic axes.
+  const pole = new THREE.Vector3(-.8676661490, .4971471917, .0003515900);
+  const transverse = pole.clone().cross(center).normalize();
+  const radial = transverse.clone().cross(pole).normalize();
   const points = [];
-  for (let i = 0; i <= 384; i += 1) {
+  for (let i = 0; i < 384; i += 1) {
     const angle = (i / 384) * Math.PI * 2;
-    points.push(new THREE.Vector3(center.x + Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+    points.push(center.clone().addScaledVector(radial,radius * Math.cos(angle))
+      .addScaledVector(transverse,radius * Math.sin(angle)));
   }
 
   const disk = new THREE.LineLoop(
@@ -497,34 +369,9 @@ function initMilkyWayOutline() {
   );
   disk.name = "Реальный диаметр Млечного Пути";
   disk.userData.kind = "galaxy-outline";
+  disk.visible = orbitsVisible;
   orbitLines.push(disk);
   world.add(disk);
-}
-
-function initNebulaBackdrop() {
-  const nebulae = [
-    { position: new THREE.Vector3(-2600, 720, -5200), scale: 1600, inner: "#e67aa8", outer: "#245d95" },
-    { position: new THREE.Vector3(3900, -420, 3600), scale: 1180, inner: "#a8d7ff", outer: "#6f4aa6" },
-  ];
-
-  nebulae.forEach((nebula) => {
-    const cloud = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: makeNebulaTexture(nebula.inner, nebula.outer),
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.38,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    );
-    cloud.position.copy(nebula.position);
-    cloud.scale.setScalar(nebula.scale);
-    putBehindBodies(cloud);
-    cloud.userData.followCamera = true;
-    cloud.userData.followOffset = nebula.position.clone();
-    scene.add(cloud);
-  });
 }
 
 function createSpacecraft(spec) {
@@ -545,19 +392,6 @@ function createSpacecraft(spec) {
 
   scaleModelToRealSpan(model, spec.spanMeters);
 
-  const halo = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: makeGlowTexture(`#${spec.color.toString(16).padStart(6, "0")}`, "#ffffff"),
-      color: spec.color,
-      transparent: true,
-      opacity: 0.18,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
-  );
-  halo.userData.navigationAid = true;
-  halo.scale.setScalar(spec.model === "jwst" ? 0.46 : 0.34);
-  group.add(halo);
   group.add(model);
   return group;
 }
@@ -765,9 +599,18 @@ function createPlanet(spec) {
   planet.rotation.z = tiltFor(spec.key);
   // Present mapped longitudes on arrival, then let the surface drift slowly underneath.
   planet.rotation.y = Math.atan2(approach.x,approach.z) - Math.PI/2;
-  if (spec.key==="earth") planet.rotation.y-=.25;
   if (spec.key==="jupiter") planet.rotation.y+=.65;
-  planet.userData.rotationSpeed = spec.rotationSpeed*.003;
+  // Earth's zero longitude crosses the vernal equinox at Greenwich sidereal zero.
+  // Other bodies rotate at their approximate sidereal period; their prime-meridian
+  // phase is illustrative. Retrograde Uranus is encoded by its >90° axial tilt.
+  const days={mercury:58.646,venus:-243.025,earth:.99726968,mars:1.025957,jupiter:.41354,saturn:.444,uranus:.71833,neptune:.67125};
+  planet.userData.rotationSpeed=2*Math.PI/(days[spec.key]*86400);
+  if(spec.key==='earth'){
+    planet.rotation.order='XYZ';
+    planet.rotation.x=-THREE.MathUtils.degToRad(23.43928);
+    planet.rotation.y=greenwichSiderealAngle(Date.now());
+    planet.rotation.z=0;
+  }
 
   if (spec.airglow) {
     const air = new THREE.Mesh(planet.geometry, new THREE.ShaderMaterial({
@@ -809,18 +652,23 @@ function createPlanet(spec) {
     }));
     air.scale.setScalar(spec.key === "earth" ? 1.035 : 1.018);
     planet.add(air);
+    planet.userData.airglow=air;
   }
 
   return planet;
 }
 
-function addOrbit(radius, color) {
-  const points = [];
-  for (let i = 0; i <= 256; i += 1) {
-    const angle = (i / 256) * Math.PI * 2;
-    points.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+let orbitGuidesReady = false;
+function createOrbitGuides() {
+  if (orbitGuidesReady) return;
+  orbitGuidesReady = true;
+  const lines = orbitPaths(Date.now());
+  for (const spec of planetSpecs) {
+    if (lines[spec.key]) addOrbit(lines[spec.key].map(v=>new THREE.Vector3(...v)), spec.colors[1]);
   }
+}
 
+function addOrbit(points, color) {
   const line = new THREE.LineLoop(
     new THREE.BufferGeometry().setFromPoints(points),
     new THREE.LineBasicMaterial({
@@ -849,14 +697,8 @@ function addRadialGuide(position, color) {
   world.add(line);
 }
 
-function applyRealScaleSpecs() {
-  planetSpecs.forEach((spec) => {
-    spec.radius = kmToWorld(spec.trueRadiusKm);
-  });
-}
-
-function auToWorld([x, y, z]) {
-  return new THREE.Vector3(x * AU_TO_UNITS, z * AU_TO_UNITS, y * AU_TO_UNITS);
+function auToWorld(position) {
+  return new THREE.Vector3(...worldCoordinates(position));
 }
 
 function kmToWorld(km) {
@@ -882,41 +724,15 @@ function addLabel(name, object, color) {
   labelEntries.push({ element, object });
 }
 
-function addVisibilityAid(target, color) {
-  const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: makeMarkerTexture(),
-      color,
-      transparent: true,
-      opacity: 0.52,
-      blending: THREE.AdditiveBlending,
-      depthTest: false,
-      depthWrite: false,
-    }),
-  );
-
-  sprite.name = `${target.name} visibility marker`;
-  sprite.userData.navigationAid = true;
-  sprite.renderOrder = 30;
-  world.add(sprite);
-  visibilityAids.push({ sprite, target, baseColor: color });
-}
-
 function addTarget(name, object, key) {
-  const color = object.userData.targetColor ?? 0xffffff;
   const entry = { name, object, key };
   targetObjects.push(entry);
-  addVisibilityAid(entry, color);
 
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = name;
   listen(button, "click", () => {
-    selectTarget(key);
-    if (compactSolar.matches) {
-      setRouteOpen(false);
-      touchJump.focus({ preventScroll: true });
-    }
+    selectTarget(key, false);
   });
   targetList.append(button);
   targetButtons.set(key, button);
@@ -924,8 +740,11 @@ function addTarget(name, object, key) {
 
 function selectTarget(key, lock = true) {
   const nextTarget = targetObjects.find((target) => target.key === key) ?? null;
+  if (selectedTarget !== nextTarget) {
+    clearTimeout(arrivalTimer);
+    arrival.classList.remove("is-arriving");
+  }
   selectedTarget = nextTarget;
-  targetPulse = 1;
 
   targetButtons.forEach((button, targetKey) => {
     const selected = nextTarget?.key === targetKey;
@@ -945,6 +764,19 @@ function selectTarget(key, lock = true) {
 function initUi() {
   setRouteOpen(false);
   listen(routeButton, "click", () => setRouteOpen(!routeOpen));
+  listen(document.getElementById("solarAim"), "click", () => {
+    if (!selectedTarget) return;
+    selectedTarget.object.getWorldPosition(tempVec);
+    lookAtWorldPosition(tempVec);
+    setRouteOpen(false);
+    canvas.focus();
+  });
+  const optics = document.getElementById("solarOptics");
+  listen(optics, "change", () => {
+    camera.zoom = Number(optics.value) || 1;
+    camera.updateProjectionMatrix();
+    framingAspect = 0;
+  });
   listen(compactSolar, "change", () => setRouteOpen(false));
   listen(touchJump, "click", jumpToSelectedTarget);
   selectTarget("earth", false);
@@ -957,6 +789,7 @@ function initUi() {
 
   listen(orbitToggle, "click", () => {
     orbitsVisible = !orbitsVisible;
+    if (orbitsVisible) createOrbitGuides();
     orbitToggle.classList.toggle("chip--active", orbitsVisible);
     orbitToggle.setAttribute("aria-pressed", String(orbitsVisible));
     orbitLines.forEach((orbit) => {
@@ -977,6 +810,7 @@ function initUi() {
 }
 
 function placeCameraNearTarget(key) {
+  flightFrame.identity();
   const target = targetObjects.find((entry) => entry.key === key);
   if (!target) {
     return;
@@ -1008,10 +842,25 @@ function jumpToSelectedTarget() {
     currentDirection.set(0.4, 0.25, 1).normalize();
   }
 
-  const approachDistance = getApproachDistance(selectedTarget.object);
+  const mode=document.querySelector('#solarApproach')?.value || 'orbit';
+  const radius=selectedTarget.object.userData.trueRadius;
+  const chosen=arrivalRangeKm(radius,mode,selectedTarget.key);
+  const approachDistance = chosen ?? getApproachDistance(selectedTarget.object);
   camera.position.copy(tempVec).addScaledVector(currentDirection.normalize(), approachDistance);
-  velocity.set(0, 0, 0);
-  lookAtWorldPosition(tempVec);
+  velocity.set(0,0,0);
+  flightFrame.identity();
+  if(chosen) {
+    // This local navigation frame keeps the horizon upright at every landing latitude.
+    horizonDirection.set(0,1,0);
+    if(Math.abs(currentDirection.y)>.95) horizonDirection.set(1,0,0);
+    horizonDirection.addScaledVector(currentDirection,-horizonDirection.dot(currentDirection)).normalize();
+    fixedEye.copy(camera.position).add(horizonDirection);
+    horizonMatrix.lookAt(camera.position,fixedEye,currentDirection);
+    flightFrame.setFromRotationMatrix(horizonMatrix);
+    yaw=roll=0;pitch=mode==='surface' ? -.18 : -Math.acos(radius/approachDistance)-.17;
+    tempEuler.set(pitch,yaw,roll);
+    camera.quaternion.copy(tempQuat.setFromEuler(tempEuler)).premultiply(flightFrame);
+  } else lookAtWorldPosition(tempVec);
   jumpCount++;
   clearTimeout(arrivalTimer);
   arrival.querySelector("span").textContent = selectedTarget.name;
@@ -1023,12 +872,12 @@ function jumpToSelectedTarget() {
 }
 
 function lookAtWorldPosition(position) {
-  const direction = tempVec2.copy(position).sub(camera.position).normalize();
+  const direction = tempVec2.copy(position).sub(camera.position).normalize().applyQuaternion(frameInverse.copy(flightFrame).invert());
   yaw = Math.atan2(-direction.x, -direction.z);
   pitch = Math.asin(THREE.MathUtils.clamp(direction.y, -1, 1));
   roll = 0;
   tempEuler.set(pitch, yaw, roll);
-  camera.quaternion.copy(tempQuat.setFromEuler(tempEuler));
+  camera.quaternion.copy(tempQuat.setFromEuler(tempEuler)).premultiply(flightFrame);
 }
 
 function getApproachDistance(object) {
@@ -1037,7 +886,7 @@ function getApproachDistance(object) {
   if (!object.userData.frameExtent) return nominal;
   if (camera.aspect !== framingAspect) {
     framingAspect = camera.aspect;
-    const halfView = Math.atan(.90 * Math.tan(THREE.MathUtils.degToRad(camera.fov/2)) * Math.min(camera.aspect,1));
+    const halfView = Math.atan(.90 * Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()/2)) * Math.min(camera.aspect,1));
     framingFactor = 1 / Math.sin(halfView);
   }
   return Math.max(nominal, object.userData.frameExtent * framingFactor);
@@ -1184,6 +1033,7 @@ export function resumeSolarFlight() {
   solarActive = true;
   launchPanel.classList.add("is-hidden");
   clock.getDelta();
+  orbitalClock.refresh();
   resize();
   if (compactSolar.matches && showTouchHint) {
     touchHint.hidden = false;
@@ -1212,10 +1062,10 @@ function animate(time = performance.now()) {
   const delta = Math.min(clock.getDelta(), 0.04);
   const elapsed = clock.elapsedTime;
 
+  syncOrbitalPositions();
+  beltScene.step(Date.now(),camera.position);
   updateCamera(delta);
   updateSolarSystem(delta, elapsed);
-  updateCameraAnchoredBackgrounds();
-  updateVisibilityAids(elapsed);
   if (time >= nextHud) {
     updateHud();
     nextHud = time + 90;
@@ -1232,7 +1082,20 @@ function animate(time = performance.now()) {
 function loseSolarContext(event) {
   event.preventDefault();
   if (retired) return;
-  const detail = {...getSolarSoundState(), position:camera.position.toArray(), yaw, pitch, wasActive:solarActive};
+  camera.getWorldDirection(horizonDirection);
+  const detail = {...getSolarSoundState(), position:camera.position.toArray(), yaw:Math.atan2(-horizonDirection.x,-horizonDirection.z), pitch:Math.asin(THREE.MathUtils.clamp(horizonDirection.y,-1,1)), wasActive:solarActive};
+  detail.opticalZoom = camera.zoom;
+  detail.viewBasis = [[1,0,0],[0,1,0],[0,0,1]].map(axis =>
+    new THREE.Vector3(...axis).applyQuaternion(camera.quaternion).toArray());
+  let nearest = Infinity;
+  for (const [key,object] of orbitalObjects) {
+    const offset = tempVec.copy(camera.position).sub(object.position);
+    const range = offset.length()/object.userData.trueRadius;
+    if (range < 48 && range < nearest) {
+      nearest = range;
+      detail.pin = {key,offset:offset.toArray()};
+    }
+  }
   retireSolarFlight();
   window.dispatchEvent(new CustomEvent('orbit:solar-context-lost', {detail}));
 }
@@ -1257,9 +1120,9 @@ export function retireSolarFlight() {
   textures.forEach(texture => texture.dispose());
   scene.clear();
   world.clear();
-  labelEntries.length = visibilityAids.length = targetObjects.length = 0;
+  labelEntries.length = targetObjects.length = 0;
   targetButtons.clear();
-  anchoredBackgrounds.length = spinningObjects.length = 0;
+  spinningObjects.length = 0;
   renderer.dispose();
   if (!renderer.getContext().isContextLost()) renderer.forceContextLoss();
 }
@@ -1269,7 +1132,7 @@ function updateCamera(delta) {
   roll = THREE.MathUtils.lerp(roll, rollDirection * 0.26, 1 - Math.exp(-8 * delta));
 
   tempEuler.set(pitch, yaw, roll);
-  tempQuat.setFromEuler(tempEuler);
+  tempQuat.setFromEuler(tempEuler).premultiply(flightFrame);
   camera.quaternion.slerp(tempQuat, 1 - Math.exp(-18 * delta));
 
   camera.getWorldDirection(forward);
@@ -1308,7 +1171,9 @@ function updateCamera(delta) {
     velocity.addScaledVector(tempVec2, maneuverAcceleration * 0.75 * delta);
   }
 
-  const maxSpeed = superCruise ? LIGHT_SPEED_KM_S * 1000 : (afterburner ? 145 : 42) * FORWARD_CRUISE_MULTIPLIER;
+  const nearest=findClosestHull();
+  const cruiseLimit=superCruise ? LIGHT_SPEED_KM_S * 1000 : (afterburner ? 145 : 42) * FORWARD_CRUISE_MULTIPLIER;
+  const maxSpeed=Math.min(cruiseLimit,Math.max(.0012,nearest.gap*.85));
   if (velocity.length() > maxSpeed) {
     velocity.setLength(maxSpeed);
   }
@@ -1316,47 +1181,49 @@ function updateCamera(delta) {
   velocity.multiplyScalar(Math.exp((superCruise ? -0.06 : -0.28) * delta));
   camera.position.addScaledVector(velocity, delta);
 
-  const solarClearance = kmToWorld(SUN_RADIUS_KM) * 1.2 + SHIP_RADIUS_KM;
-  if (camera.position.length() < solarClearance) {
-    camera.position.setLength(solarClearance);
-    velocity.multiplyScalar(0.62);
-  }
+  keepHullClear(nearest.object);
 }
 
-// Assisted thrust is proportional to local clearance. A metre-size probe and a planet
-// can both be inspected without changing gears or drifting through the target.
-function flyWithStick(delta) {
-  const { x, y } = solarTouch.state;
-  if (x === 0 && y === 0 && velocity.lengthSq() === 0) return;
-  let nearest = null;
-  let clearance = Infinity;
-  for (const target of targetObjects) {
-    const radius = target.object.userData.trueRadius;
-    if (!radius) continue;
+const closestHull={object:null,gap:Infinity};
+function findClosestHull() {
+  closestHull.object=null;closestHull.gap=Infinity;
+  for(const target of targetObjects) {
+    const radius=target.object.userData.trueRadius;
+    if(!radius) continue;
     target.object.getWorldPosition(tempVec);
-    const gap = camera.position.distanceTo(tempVec) - radius;
-    if (gap < clearance) {
-      nearest = target.object;
-      clearance = gap;
-    }
+    const gap=camera.position.distanceTo(tempVec)-radius;
+    if(gap<closestHull.gap){closestHull.object=target.object;closestHull.gap=gap;}
   }
-  const limit = THREE.MathUtils.clamp(clearance * 0.74, 0.04, LIGHT_SPEED_KM_S * 0.5);
-  touchVelocity.copy(forward).multiplyScalar(y * limit);
-  touchVelocity.addScaledVector(right, x * limit * 0.72);
-  velocity.lerp(touchVelocity, 1 - Math.exp(-(x || y ? 7 : 13) * delta));
-  if (!x && !y && velocity.length() < limit * 0.008) velocity.set(0, 0, 0);
-  camera.position.addScaledVector(velocity, delta);
-  if (!nearest) return;
-  nearest.getWorldPosition(tempVec);
+  return closestHull;
+}
+
+function keepHullClear(object) {
+  if(!object) return;
+  object.getWorldPosition(tempVec);
   tempVec2.copy(camera.position).sub(tempVec);
-  const radius = nearest.userData.trueRadius;
-  const minDistance = radius + Math.max(radius * 0.04, SHIP_RADIUS_KM);
-  if (tempVec2.lengthSq() < minDistance * minDistance) {
-    tempVec2.normalize();
-    camera.position.copy(tempVec).addScaledVector(tempVec2, minDistance);
-    const inward = velocity.dot(tempVec2);
-    if (inward < 0) velocity.addScaledVector(tempVec2, -inward);
-  }
+  const minDistance=object.userData.trueRadius+HULL_CLEARANCE_KM;
+  if(tempVec2.lengthSq()>=minDistance*minDistance) return;
+  if(tempVec2.lengthSq()===0) tempVec2.copy(forward).negate();
+  tempVec2.normalize();
+  camera.position.copy(tempVec).addScaledVector(tempVec2,minDistance);
+  const inward=velocity.dot(tempVec2);
+  if(inward<0) velocity.addScaledVector(tempVec2,-inward);
+}
+
+// A ship seven metres long can move at walking speed just above the terrain.
+function flyWithStick(delta) {
+  const {x,y,lift=0}=solarTouch.state;
+  const moving=x!==0 || y!==0 || lift!==0;
+  if(!moving && velocity.lengthSq()===0) return;
+  const nearest=findClosestHull();
+  const limit=approachSpeedLimit(nearest.gap);
+  touchVelocity.copy(forward).multiplyScalar(y*limit);
+  touchVelocity.addScaledVector(right,x*limit*.72);
+  touchVelocity.addScaledVector(up,lift*limit*.55);
+  velocity.lerp(touchVelocity,1-Math.exp(-(moving?7:13)*delta));
+  if(!moving && velocity.length()<limit*.008) velocity.set(0,0,0);
+  camera.position.addScaledVector(velocity,delta);
+  keepHullClear(nearest.object);
 }
 
 export function getSolarSoundState() {
@@ -1368,16 +1235,51 @@ export function getSolarSoundState() {
     const distance = camera.position.distanceTo(tempVec);
     near = THREE.MathUtils.clamp((3 - distance / getApproachDistance(object)) / 2, 0, 1);
     if (solarTouch.state.assisted) {
-      speedScale = THREE.MathUtils.clamp((distance - (object.userData.trueRadius || 0)) * 0.74, 0.04, LIGHT_SPEED_KM_S * 0.5);
+      speedScale = approachSpeedLimit(distance-(object.userData.trueRadius||0));
     }
   }
   return { speed: Math.min(1, velocity.length() / speedScale), target: selectedTarget?.key, near, jump: jumpCount };
 }
 
+function syncOrbitalPositions() {
+  const sample = orbitalClock.update(Date.now(),camera.position.toArray(clockEye));
+  if (!sample) return;
+  camera.position.add(tempVec.fromArray(sample.drift));
+  for (const [key,object] of orbitalObjects) {
+    object.position.fromArray(sample.positions[key]);
+    const sunDirection = tempVec.copy(object.position).normalize().negate();
+    object.material.uniforms.sunlight.value.copy(sunDirection);
+    for (const layer of object.children) {
+      const sunlight = layer.material?.uniforms?.sunlight;
+      if (sunlight) sunlight.value.copy(sunDirection);
+    }
+    if (key === "moon") {
+      // The Moon is tidally locked. Arrivals on the near side have a clear sightline to Earth.
+      const earthward = tempVec2.fromArray(sample.positions.earth).sub(object.position).normalize();
+      object.rotation.y = Math.atan2(-earthward.z,earthward.x);
+      object.userData.approachVector.copy(earthward);
+    } else {
+      object.userData.approachVector.copy(approachFromSun(sunDirection));
+    }
+  }
+}
+
 function updateSolarSystem(delta, elapsed) {
   spinningObjects.forEach(object => {
     if (object.userData.rotationSpeed) {
-      object.rotation.y += object.userData.rotationSpeed * delta;
+      const radius=object.userData.trueRadius || 0;
+      object.getWorldPosition(fixedCenter);
+      fixedEye.copy(camera.position).sub(fixedCenter);
+      const following=radius>0 && fixedEye.length()<radius*1.22;
+      if(following) object.getWorldQuaternion(priorSpin);
+      if(object.userData.spec?.key==='earth') object.rotation.y=greenwichSiderealAngle(Date.now());
+      else object.rotation.y += object.userData.rotationSpeed*delta;
+      if(following){
+        object.getWorldQuaternion(spinDifference).multiply(priorSpin.invert());
+        camera.position.copy(fixedCenter).add(fixedEye.applyQuaternion(spinDifference));
+        flightFrame.premultiply(spinDifference);
+        camera.quaternion.premultiply(spinDifference);
+      }
     }
 
     if (object.userData.orbitSpeed) {
@@ -1385,46 +1287,7 @@ function updateSolarSystem(delta, elapsed) {
     }
   });
 
-  surfaces.update(delta,camera.position,renderBudget.profile());
-  if (selectedTarget) {
-    targetPulse = Math.max(0, targetPulse - delta * 0.8);
-    selectedTarget.object.getWorldPosition(tempVec);
-
-    raycaster.set(camera.position, tempVec2.copy(tempVec).sub(camera.position).normalize());
-  }
-}
-
-function updateCameraAnchoredBackgrounds() {
-  anchoredBackgrounds.forEach(object => {
-    object.position.copy(camera.position);
-    if (object.userData.followOffset) {
-      object.position.add(object.userData.followOffset);
-    }
-  });
-}
-
-function updateVisibilityAids(elapsed) {
-  const viewportHeight = Math.max(window.innerHeight, 1);
-  const angularWorldPerPixel = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / viewportHeight;
-
-  visibilityAids.forEach(({ sprite, target }) => {
-    target.object.getWorldPosition(tempVec);
-    sprite.position.copy(tempVec);
-
-    const distance = camera.position.distanceTo(tempVec);
-    const radius = target.object.userData.trueRadius ?? 0;
-    const selected = target === selectedTarget;
-    const pixels = selected ? 54 : 34;
-    const screenScale = Math.max(distance * angularWorldPerPixel * pixels, radius * 4, 0.02);
-    const nearFadeStart = Math.max(radius * 120, getApproachDistance(target.object) * 2, 0.35);
-    const nearFadeEnd = Math.max(radius * 22, getApproachDistance(target.object) * 0.55, 0.08);
-    const nearAlpha = THREE.MathUtils.smoothstep(distance, nearFadeEnd, nearFadeStart);
-    const pulse = selected ? 1 + Math.sin(elapsed * 5.4) * 0.11 + targetPulse * 0.45 : 1;
-
-    sprite.scale.setScalar(screenScale * pulse);
-    sprite.material.opacity = (selected ? 0.78 : 0.42) * nearAlpha;
-    sprite.visible = sprite.material.opacity > 0.015;
-  });
+  surfaces.update(delta,camera,renderBudget.profile());
 }
 
 function updateHud() {
@@ -1436,8 +1299,10 @@ function updateHud() {
   }
 
   selectedTarget.object.getWorldPosition(tempVec);
-  const distanceAU = camera.position.distanceTo(tempVec) / AU_TO_UNITS;
-  distanceReadout.textContent = formatDistance(distanceAU);
+  const distance = camera.position.distanceTo(tempVec);
+  const radius = selectedTarget.object.userData.trueRadius || 0;
+  const local = selectedTarget.object.userData.surfaceLod && distance < 1.22*radius;
+  distanceReadout.textContent = (local?'Высота ':'')+formatDistance((local?Math.max(0,distance-radius):distance)/AU_TO_UNITS);
 }
 
 function formatDistance(au) {
@@ -1562,84 +1427,6 @@ function makeGlowTexture(inner, outer) {
   gradient.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
-
-  const texture = new THREE.CanvasTexture(textureCanvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function makeMarkerTexture() {
-  const size = 256;
-  const textureCanvas = document.createElement("canvas");
-  textureCanvas.width = size;
-  textureCanvas.height = size;
-  const ctx = textureCanvas.getContext("2d");
-  const center = size / 2;
-
-  ctx.clearRect(0, 0, size, size);
-  ctx.strokeStyle = "rgba(255,255,255,0.9)";
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.arc(center, center, 62, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(center, 28);
-  ctx.lineTo(center, 68);
-  ctx.moveTo(center, size - 28);
-  ctx.lineTo(center, size - 68);
-  ctx.moveTo(28, center);
-  ctx.lineTo(68, center);
-  ctx.moveTo(size - 28, center);
-  ctx.lineTo(size - 68, center);
-  ctx.stroke();
-
-  const glow = ctx.createRadialGradient(center, center, 0, center, center, center);
-  glow.addColorStop(0, "rgba(255,255,255,0.18)");
-  glow.addColorStop(0.38, "rgba(255,255,255,0.08)");
-  glow.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, size, size);
-
-  const texture = new THREE.CanvasTexture(textureCanvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function makeNebulaTexture(inner, outer) {
-  const size = 512;
-  const textureCanvas = document.createElement("canvas");
-  textureCanvas.width = size;
-  textureCanvas.height = size;
-  const ctx = textureCanvas.getContext("2d");
-  ctx.clearRect(0, 0, size, size);
-
-  const base = ctx.createRadialGradient(size * 0.48, size * 0.5, 0, size * 0.5, size * 0.5, size * 0.5);
-  base.addColorStop(0, hexWithAlpha(inner, 0.62));
-  base.addColorStop(0.38, hexWithAlpha(outer, 0.22));
-  base.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, size, size);
-
-  for (let i = 0; i < 120; i += 1) {
-    const x = THREE.MathUtils.randFloat(size * 0.2, size * 0.8);
-    const y = THREE.MathUtils.randFloat(size * 0.18, size * 0.82);
-    const radius = THREE.MathUtils.randFloat(16, 96);
-    const color = Math.random() > 0.48 ? inner : outer;
-    ctx.fillStyle = hexWithAlpha(color, THREE.MathUtils.randFloat(0.035, 0.11));
-    ctx.beginPath();
-    ctx.ellipse(
-      x,
-      y,
-      radius * THREE.MathUtils.randFloat(1.4, 3.2),
-      radius * THREE.MathUtils.randFloat(0.28, 0.74),
-      THREE.MathUtils.randFloat(-0.9, 0.9),
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
-  }
 
   const texture = new THREE.CanvasTexture(textureCanvas);
   texture.colorSpace = THREE.SRGBColorSpace;

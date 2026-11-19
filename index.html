@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="./pilot-stick.css" />
     <link rel="stylesheet" href="./release-ui.css" />
     <link rel="stylesheet" href="./webview-layout.css" />
+    <link rel="stylesheet" href="./solar-navigation.css" />
   </head>
   <body>
     <main id="game" hidden>
@@ -46,23 +47,40 @@
         <div id="solarRoutePanel" class="solar-route-panel">
           <div class="hud__title">Навигация</div>
           <p id="solarListening" class="solar-listening"></p>
-          <div class="target-list" id="targetList"></div>
+          <div class="nav-actions">
+            <button id="solarAim" class="chip" type="button">Взгляд на цель</button>
+            <button id="jumpButton" class="chip" type="button">Прыжок к цели</button>
+          </div>
+          <div class="target-list" id="targetList" aria-label="Выбор цели"></div>
+          <div class="nav-optics">
+            <label>Подлёт<select id="solarApproach"><option value="orbit">Орбита</option><option value="local">Низко</option><option value="surface">У поверхности</option></select></label>
+            <label>Оптика<select id="solarOptics"><option value="1">1×</option><option value="3">3×</option><option value="8">8×</option></select></label>
+          </div>
           <div class="switch-row">
             <button id="orbitToggle" class="chip" type="button" aria-pressed="false">Орбиты</button>
-            <button id="labelsToggle" class="chip" type="button" aria-pressed="false">Метки</button>
+            <button id="labelsToggle" class="chip" type="button" aria-pressed="false">Названия</button>
             <button id="solarSound" class="chip" type="button" aria-pressed="true">Звук</button>
-            <button id="jumpButton" class="chip" type="button">Прыжок</button>
+
           </div>
+          <button id="solarLiftToggle" class="chip solar-touch-only" type="button" aria-pressed="false" aria-controls="solarLiftPad">Вертикальная тяга</button>
+          <p id="solarEpoch" class="nav-epoch"></p>
           <details class="solar-help"><summary>Управление</summary>
-            <p class="solar-touch-only">Потяни стик вверх, чтобы лететь вперёд. Вниз — назад, в стороны — боком. Отпусти для остановки. Веди вторым пальцем по небу для обзора.</p>
+            <p class="solar-touch-only">Потяни стик вверх, чтобы лететь вперёд. Вниз — назад, в стороны — боком. Отпусти для остановки. Свайп по небу поворачивает корабль. Кнопки вертикальной тяги поднимают и опускают корабль относительно кабины.</p>
+            <p>«Взгляд на цель» поворачивает камеру с текущего места. Для космических зондов показаны архивные координаты на 19 мая 2026 года.</p>
             <p>На клавиатуре WASD — движение, пробел и C — вверх и вниз, Q и E — крен. Мышь — обзор, Shift — форсаж, B — суперкруиз, T — прыжок.</p>
           </details>
         </div>
       </aside>
 
       <div class="solar-touch-only solar-flight-deck">
-        <div class="solar-stick" id="solarStick" aria-label="Стик движения корабля">
-          <span class="solar-stick-knob" aria-hidden="true"></span>
+        <div class="solar-thrusters">
+          <div class="solar-stick" id="solarStick" aria-label="Стик движения корабля">
+            <span class="solar-stick-knob" aria-hidden="true"></span>
+          </div>
+          <div id="solarLiftPad" class="solar-lift-pad" role="group" aria-label="Вертикальная тяга" hidden>
+            <button type="button" data-lift="1" aria-label="Тяга вверх" title="Тяга вверх"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 14 12 8.5 17.5 14M7 17.5h10"/></svg></button>
+            <button type="button" data-lift="-1" aria-label="Тяга вниз" title="Тяга вниз"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6.5 10 5.5 5.5 5.5-5.5M7 6.5h10"/></svg></button>
+          </div>
         </div>
         <button type="button" id="solarJump" class="solar-warp">
           <svg viewBox="0 0 32 24" fill="none" aria-hidden="true"><path d="M3 19h10L26 5m-8 1 9-2-1 8M4 13l7-1m-3 6 3-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -83,8 +101,9 @@
           <div class="hangar-brand"><span aria-hidden="true" class="orbit-mark"></span>ORBIT ESCAPE</div>
           <button type="button" id="handSwitch" aria-haspopup="dialog" aria-controls="handDialog">Настройки</button>
         </div>
-        <div class="chapter-picker" role="group" aria-label="Выбор экспедиции">
-          <button id="chapterBeacon" type="button" aria-pressed="true"><small>01</small> Тихий маяк</button>
+        <div class="chapter-picker" role="group" aria-label="Режим полёта">
+          <button id="chapterSolar" type="button" aria-pressed="true">Полёт</button>
+          <button id="chapterBeacon" type="button" aria-pressed="false"><small>01</small> Тихий маяк</button>
           <button id="chapterEcho" type="button" aria-pressed="false"><small>02</small> Два голоса</button>
           <button id="chapterLast" type="button" aria-pressed="false"><small>03</small> Обратный свет</button>
         </div>
@@ -121,6 +140,7 @@
         </label>
         <details class="art-credits"><summary>Авторы изображений</summary>
           <p>Земля и ночные огни — NASA Earth Observatory и NASA/NOAA. Луна — NASA Scientific Visualization Studio по данным LRO. Карты других планет, облака Земли и кольца Сатурна — Solar System Scope, лицензия CC BY 4.0. Изображения адаптированы для игры.</p>
+          <p>На главном экране — снимок Земли над лунным горизонтом с Apollo 11 (NASA, AS11-44-6552). Звёзды — Yale Bright Star Catalogue. Панорама Млечного Пути — NASA Scientific Visualization Studio.</p>
           <p>Solar System Scope · solarsystemscope.com/textures<br>CC BY 4.0 · creativecommons.org/licenses/by/4.0/</p>
         </details>
         <button type="button" id="hangarSound" aria-pressed="true">Звук включён</button>

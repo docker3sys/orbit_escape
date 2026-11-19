@@ -1,7 +1,86 @@
 // Keep the thumb that pilots and the thumb that looks around independent.
 export function createSolarTouch(stick, sky, { onLook, onUse, onSky, signal }) {
   const listeners = {signal};
-  const state = { x: 0, y: 0, assisted: false };
+  const state = { x: 0, y: 0, lift: 0, assisted: false };
+  const liftToggle = document.getElementById('solarLiftToggle');
+  const liftPad = document.getElementById('solarLiftPad');
+  const liftKey = 'orbit-escape/vertical-thrust/1';
+  const liftButtons = Array.from(liftPad.querySelectorAll('[data-lift]'));
+  const heldLift = new Map();
+  let liftEnabled = false;
+  let assistTimer = 0;
+  try { liftEnabled = localStorage.getItem(liftKey) === '1'; } catch {}
+
+  function syncLift() {
+    let sum = 0;
+    for (const button of heldLift.values()) sum += Number(button.dataset.lift);
+    state.lift = Math.min(1, Math.max(-1, sum));
+    for (const button of liftButtons) {
+      button.classList.toggle('is-firing', Array.from(heldLift.values()).includes(button));
+    }
+  }
+
+  function releaseLift() {
+    for (const [id, button] of heldLift) {
+      if (typeof id === 'number' && button.hasPointerCapture(id)) button.releasePointerCapture(id);
+    }
+    heldLift.clear();
+    clearTimeout(assistTimer);
+    syncLift();
+  }
+
+  function setLiftControls() {
+    liftToggle.setAttribute('aria-pressed', String(liftEnabled));
+    liftToggle.classList.toggle('chip--active', liftEnabled);
+    liftPad.hidden = !liftEnabled;
+    if (!liftEnabled) releaseLift();
+  }
+  setLiftControls();
+  liftToggle.addEventListener('click', () => {
+    liftEnabled = !liftEnabled;
+    setLiftControls();
+    try { localStorage.setItem(liftKey, liftEnabled ? '1' : '0'); } catch {}
+  }, listeners);
+
+  function engageLift(id, button) {
+    if (!liftEnabled) return;
+    heldLift.set(id, button);
+    state.assisted = true;
+    syncLift();
+    onUse();
+  }
+  for (const button of liftButtons) {
+    button.addEventListener('pointerdown', event => {
+      if (!liftEnabled || event.button !== 0) return;
+      event.preventDefault();
+      button.setPointerCapture(event.pointerId);
+      engageLift(event.pointerId, button);
+    }, listeners);
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      button.addEventListener(type, event => {
+        if (heldLift.delete(event.pointerId)) syncLift();
+      }, listeners);
+    }
+    for (const type of ['keydown', 'keyup']) {
+      button.addEventListener(type, event => {
+        if (event.key !== ' ' && event.key !== 'Enter') return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (type === 'keydown' && !event.repeat) engageLift('key', button);
+        if (type === 'keyup' && heldLift.delete('key')) syncLift();
+      }, listeners);
+    }
+    button.addEventListener('blur', () => {
+      if (heldLift.delete('key')) syncLift();
+    }, listeners);
+    // Accessibility services can activate a button without pointer or key events.
+    button.addEventListener('click', event => {
+      if (event.detail !== 0 || !liftEnabled) return;
+      clearTimeout(assistTimer);
+      engageLift('activate', button);
+      assistTimer = setTimeout(() => { heldLift.delete('activate'); syncLift(); }, 160);
+    }, listeners);
+  }
   let stickId = null;
   let lookId = null;
   let lastX = 0;
@@ -89,6 +168,7 @@ export function createSolarTouch(stick, sky, { onLook, onUse, onSky, signal }) {
       if (stickId !== null && stick.hasPointerCapture(stickId)) stick.releasePointerCapture(stickId);
       if (lookId !== null && sky.hasPointerCapture(lookId)) sky.releasePointerCapture(lookId);
       resetStick();
+      releaseLift();
       lookId = null;
     }
   };

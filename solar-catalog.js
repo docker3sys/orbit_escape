@@ -4,7 +4,6 @@ export const planetSpecs = [
     key: "mercury",
     name: "Меркурий",
     trueRadiusKm: 2439.7,
-    positionAU: [0.047959651626, 0.303161889615, 0.020376651693],
     orbitAU: 0.307608,
     rotationSpeed: 0.58,
     roughness: 0.72,
@@ -16,7 +15,6 @@ export const planetSpecs = [
     airglow: 0xffd08b,
     name: "Венера",
     trueRadiusKm: 6051.8,
-    positionAU: [-0.531076427796, 0.482428747067, 0.037270691319],
     orbitAU: 0.718449,
     rotationSpeed: -0.15,
     roughness: 0.38,
@@ -28,7 +26,6 @@ export const planetSpecs = [
     airglow: 0x88d9ff,
     name: "Земля",
     trueRadiusKm: 6371,
-    positionAU: [-0.540789263351, -0.854915766526, 0.000052018045],
     orbitAU: 1.0116,
     rotationSpeed: 0.85,
     roughness: 0.24,
@@ -41,7 +38,6 @@ export const planetSpecs = [
     key: "mars",
     name: "Марс",
     trueRadiusKm: 3389.5,
-    positionAU: [1.380389484491, 0.240381251646, -0.028810584985],
     orbitAU: 1.401459,
     rotationSpeed: 0.78,
     roughness: 0.64,
@@ -52,7 +48,6 @@ export const planetSpecs = [
     key: "jupiter",
     name: "Юпитер",
     trueRadiusKm: 69911,
-    positionAU: [-2.651996445048, 4.543818325489, 0.040459653926],
     orbitAU: 5.261274,
     rotationSpeed: 1.34,
     roughness: 0.18,
@@ -65,7 +60,6 @@ export const planetSpecs = [
     airglow: 0xffdfa5,
     name: "Сатурн",
     trueRadiusKm: 58232,
-    positionAU: [9.412333564228, 1.023890906836, -0.392498617414],
     orbitAU: 9.475992,
     rotationSpeed: 1.12,
     roughness: 0.2,
@@ -78,7 +72,6 @@ export const planetSpecs = [
     key: "uranus",
     name: "Уран",
     trueRadiusKm: 25362,
-    positionAU: [9.403782089303, 17.043308210166, -0.058635646926],
     orbitAU: 19.465583,
     rotationSpeed: -0.82,
     roughness: 0.12,
@@ -90,7 +83,6 @@ export const planetSpecs = [
     key: "neptune",
     name: "Нептун",
     trueRadiusKm: 24622,
-    positionAU: [29.857699369897, 0.954457685053, -0.707708761517],
     orbitAU: 29.881333,
     rotationSpeed: 0.78,
     roughness: 0.18,
@@ -99,6 +91,7 @@ export const planetSpecs = [
   },
 ];
 
+// Approximate spacecraft positions at 2026-05-19 TDB, preserved separately from the planet ephemeris.
 export const spacecraftSpecs = [
   {
     key: "voyager1",
@@ -164,3 +157,9 @@ export const spacecraftSpecs = [
     distanceAU: 1.022105,
   },
 ];
+
+// Direction of Sgr A* (J2000 RA 266.4051°, Dec -28.9362°) in game ecliptic axes.
+const ra = 266.4051 * Math.PI/180, dec = -28.9362 * Math.PI/180, obliquity = 23.4392911 * Math.PI/180;
+const eqY = Math.cos(dec)*Math.sin(ra), eqZ = Math.sin(dec);
+export const galacticDirection = [Math.cos(dec)*Math.cos(ra), eqZ*Math.cos(obliquity)-eqY*Math.sin(obliquity),
+  -(eqY*Math.cos(obliquity)+eqZ*Math.sin(obliquity))];

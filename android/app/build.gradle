@@ -23,8 +23,8 @@ android {
         applicationId "com.orbitescape.game"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.2.0"
+        versionCode 4
+        versionName "1.3.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -52,7 +52,7 @@ android {
         preview {
             initWith release
             applicationIdSuffix '.preview'
-            versionNameSuffix '-preview.5'
+            versionNameSuffix '-preview.6'
             signingConfig signingConfigs.debug
             matchingFallbacks = ['release']
         }
@@ -61,7 +61,7 @@ android {
 
 androidComponents {
     onVariants(selector().withBuildType("preview")) { variant ->
-        variant.outputs.each { output -> output.versionCode.set(5) }
+        variant.outputs.each { output -> output.versionCode.set(6) }
     }
 }
 
